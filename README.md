@@ -44,6 +44,20 @@
 
 It's a static site with no game server to run. The host's browser acts as the game server. Players connect directly to the host over **WebRTC** data channels, which are encrypted with DTLS. A signalling server is used only to introduce players to each other, and the free public [PeerJS](https://peerjs.com) cloud is used by default.
 
+### Troubleshooting multiplayer
+
+If joining fails, the error screen names the stage that failed, gives a code, and has a **🩺 Test my connection** button:
+
+| Code | Meaning | What to do |
+|---|---|---|
+| E1 | Can't reach the PeerJS connection service | Check the internet connection. A network filter, VPN or ad-blocker may be blocking `0.peerjs.com`. |
+| E2 | Room not found | The host's tab is closed or was refreshed (rooms only exist while it's open), or the code is wrong. |
+| E3 | Found the room, but couldn't open a direct connection | One of the networks blocks peer-to-peer (common on school/office Wi-Fi). Try mobile data, or add a TURN server on port 443 (below). |
+| E4 | The host left | The host needs to create a new room. Guests find out within about 12 seconds. |
+| E5 | Browser can't do WebRTC | Open the link in Chrome, Safari, Firefox or Edge rather than an in-app browser. |
+
+By default PeerJS provides Google STUN plus its own free TURN relays on UDP port 3478. For players on very strict networks, add a TURN service that supports TLS on port 443 in `iceServers` in `js/config.js`. The file has an example.
+
 ## Security measures
 
 - **Host is the authority.** Answers, the drawing word and the Guess Who secret stay on the host until the reveal. Only the host calculates scores, and clients send only intents (answers, chat, strokes).

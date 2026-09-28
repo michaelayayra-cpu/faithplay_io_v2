@@ -94,8 +94,9 @@ class Room {
         this.destroy(); location.hash = '#/';
         break;
       case 'closed':
-        FP.toast('The host closed the room.', 'bad');
-        this.destroy(); location.hash = '#/';
+        this.destroy();
+        history.replaceState(null, '', '#/');
+        showError('', '', { code: 'E4', type: 'host-closed-room' });
         break;
       default:
         this.view && this.view.onMsg && this.view.onMsg(m);
@@ -226,7 +227,8 @@ async function hostRoom() {
       return;
     } catch (err) {
       if (err && err.type === 'unavailable-id') continue;
-      showError('Could not create a room', FP.peerErrorText(err));
+      const mode = pendingMode;
+      showError('Creating a room', '', err, () => { pendingMode = mode; hostRoom(); });
       return;
     }
   }
@@ -236,19 +238,21 @@ async function hostRoom() {
 async function joinRoom(code) {
   if (FP.room && FP.room.code === code && !FP.room.dead) { FP.room.mount(app); return; }
   if (FP.room) FP.room.destroy();
-  showLoading('Joining room ' + code + '…', true);
+  const setSub = showLoading('Joining room ' + code + '…', true);
   const tx = new FP.ClientTransport();
+  tx.onStage = (st) => setSub(st === 'room' ? 'Connected to the service — looking for the host…' : st === 'p2p' ? 'Found the room — opening a direct connection…' : 'Contacting the connection service…');
   const room = new Room({ role: 'guest', code, tx });
   FP.room = room;
   tx.onServerMessage = (m) => room.onServerMessage(m);
   tx.onStatus = setStatus;
-  tx.onClose = () => { if (!room.dead) { FP.toast('Lost connection to the host.', 'bad'); room.destroy(); location.hash = '#/'; } };
+  tx.onClose = () => { if (!room.dead) { room.destroy(); history.replaceState(null, '', '#/'); showError('', '', { code: 'E4', type: 'host-disconnected' }); } };
   try {
     await tx.join(code);
   } catch (err) {
     if (room.dead) return;
     room.destroy();
-    showError('Could not join room ' + code, err && err.message && !err.type ? err.message : FP.peerErrorText(err));
+    if (err && err.message && !err.type && !err.code) showError('Could not join room ' + code, err.message);
+    else showError('Room ' + code, '', err, '#/r/' + code);
     return;
   }
   if (room.dead || location.hash !== '#/r/' + code) return;
@@ -271,15 +275,42 @@ function playSolo(mode) {
 /* ---------------- simple screens ---------------- */
 function showLoading(text, cancel) {
   FP.clear(app);
+  const sub = h('p', { class: 'muted small mt', text: 'Connecting securely, peer-to-peer…' });
   app.append(h('div', { class: 'card pad-lg center', style: { maxWidth: '440px', margin: '60px auto' } },
-    h('div', { class: 'spinner' }), h('h2', { class: 'mt', text }), h('p', { class: 'muted small mt', text: 'Connecting securely, peer-to-peer…' }),
+    h('div', { class: 'spinner' }), h('h2', { class: 'mt', text }), sub,
     cancel ? h('a', { class: 'btn btn-ghost mt', href: '#/' }, 'Cancel') : null));
+  return (t) => { sub.textContent = t; };
 }
-function showError(title, msg) {
+// Troubleshooting panel: tells players *what* is blocked on their network.
+function connectionCheckPanel() {
+  const box = h('div', { class: 'card mt small', style: { textAlign: 'left', boxShadow: 'none', background: 'var(--surface-2)' } });
+  const btn = h('button', { class: 'btn btn-sm', type: 'button' }, '🩺 Test my connection');
+  btn.addEventListener('click', async () => {
+    btn.disabled = true; btn.textContent = 'Testing… (up to 10s)';
+    const r = await FP.checkConnection();
+    FP.clear(box);
+    const line = (ok, label, good, bad) => h('div', null, (ok ? '✅ ' : '❌ ') + label + ' — ' + (ok ? good : bad));
+    box.append(h('b', { text: 'Connection check' }),
+      line(r.webrtc, 'Peer-to-peer support', 'your browser supports it', 'not available in this browser (try Chrome/Safari/Firefox, not an in-app browser)'),
+      line(r.signalling, 'Connection service', 'reachable', 'blocked or offline — rooms can\'t work on this network'),
+      line(r.stun, 'Direct connections (STUN)', 'available', 'blocked — you\'ll rely on the relay below'),
+      line(r.turn, 'Relay fallback (TURN)', 'available — should work even on strict networks', 'blocked on this network'),
+      h('p', { class: 'tiny muted mt', text: r.signalling && (r.stun || r.turn) ? 'This device looks fine. If joining still fails, the problem is likely on the other player\'s network — ask them to run this test too.' : 'This network is blocking what rooms need. Try mobile data or a different Wi-Fi.' }));
+  });
+  box.append(btn);
+  return box;
+}
+function showError(title, msg, err, retryHref) {
   FP.clear(app);
-  app.append(h('div', { class: 'card pad-lg center', style: { maxWidth: '480px', margin: '60px auto' } },
-    h('div', { class: 'big-emoji', text: '😕' }), h('h2', { class: 'mt', text: title }), h('p', { class: 'muted mt', text: msg }),
-    h('div', { class: 'row mt', style: { justifyContent: 'center' } }, h('a', { class: 'btn btn-primary', href: '#/' }, 'Back to games'))));
+  const e = err ? FP.netError(err) : null;
+  app.append(h('div', { class: 'card pad-lg center', style: { maxWidth: '520px', margin: '60px auto' } },
+    h('div', { class: 'big-emoji', text: '😕' }), h('h2', { class: 'mt', text: e ? e.title : title }),
+    h('p', { class: 'muted mt', text: e ? e.text : msg }),
+    e ? h('p', { class: 'tiny muted mt', text: 'Error ' + e.code + ' · ' + e.detail + (title ? ' · ' + title : '') }) : null,
+    h('div', { class: 'row mt', style: { justifyContent: 'center' } },
+      retryHref ? h('button', { class: 'btn btn-primary', type: 'button', onclick: () => { if (typeof retryHref === 'function') retryHref(); else if (location.hash === retryHref) route(); else location.hash = retryHref; } }, '🔄 Try again') : null,
+      h('a', { class: 'btn' + (retryHref ? '' : ' btn-primary'), href: '#/' }, 'Back to games')),
+    e ? connectionCheckPanel() : null));
 }
 
 // Each game card is a real link, so right-click → "Open in new tab" (and middle-click,

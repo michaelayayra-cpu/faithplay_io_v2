@@ -52,17 +52,42 @@ const clone = (m) => (typeof structuredClone === 'function' ? structuredClone(m)
 
 function peerOptions() {
   const c = (FP.CONFIG && FP.CONFIG.peer) || {};
-  return { debug: 0, host: c.host, port: c.port, secure: c.secure, path: c.path };
+  const o = { debug: 0, host: c.host, port: c.port, secure: c.secure, path: c.path };
+  // Only override ICE servers if the site owner configured their own; otherwise PeerJS's
+  // defaults apply (Google STUN + PeerJS's free TURN relays on UDP 3478).
+  if (FP.CONFIG && Array.isArray(FP.CONFIG.iceServers) && FP.CONFIG.iceServers.length) o.config = { iceServers: FP.CONFIG.iceServers };
+  return o;
 }
-function peerErrorText(err) {
+
+// Every failure maps to a stage + a short code players can report ("error E3").
+const SIGNAL_ERRORS = ['network', 'server-error', 'socket-error', 'socket-closed', 'ssl-unavailable'];
+FP.NET_ERRORS = {
+  E1: { title: 'Can\'t reach the connection service', text: 'Your browser couldn\'t contact the free PeerJS service that introduces players to each other. You may be offline, or a network filter, VPN or ad-blocker may be blocking 0.peerjs.com.' },
+  E2: { title: 'Room not found', text: 'Nobody is hosting this room right now. The host may have closed or refreshed their tab (rooms only live while the host\'s tab is open), or the code is wrong. Ask the host for a fresh link.' },
+  E3: { title: 'Found the room, but couldn\'t connect to it', text: 'The room exists, but your network and the host\'s network couldn\'t open a direct connection. This is common on school, office and some mobile networks that block peer-to-peer traffic. Try switching one of you to mobile data or another Wi-Fi.' },
+  E4: { title: 'The host left', text: 'The host closed their tab or lost connection, so the room has closed. The host can create a new room and share the new link.' },
+  E5: { title: 'Browser not supported', text: 'This browser can\'t make peer-to-peer connections (WebRTC). Please use an up-to-date Chrome, Safari, Firefox or Edge — in-app browsers (inside Instagram, Facebook, etc.) sometimes block it, so open the link in your normal browser.' },
+  E6: { title: 'Connection timed out', text: 'Connecting took too long. Check your internet connection and try again.' },
+  E7: { title: 'Room code already in use', text: 'Please try creating the room again.' },
+};
+function errorCode(err) {
   const t = err && err.type;
-  if (t === 'peer-unavailable') return 'Room not found. Check the code or ask the host for a new link.';
-  if (t === 'unavailable-id') return 'That room code is already in use.';
-  if (t === 'browser-incompatible') return 'Your browser does not support WebRTC.';
-  if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') return 'Could not reach the matchmaking server. Check your connection.';
-  return 'Connection problem (' + (t || 'unknown') + ').';
+  if (err && err.code && FP.NET_ERRORS[err.code]) return err.code;
+  if (t === 'peer-unavailable') return 'E2';
+  if (t === 'browser-incompatible' || t === 'no-webrtc') return 'E5';
+  if (t === 'unavailable-id') return 'E7';
+  if (SIGNAL_ERRORS.includes(t)) return 'E1';
+  if (t === 'negotiation-failed' || t === 'webrtc' || t === 'ice-failed') return 'E3';
+  if (t === 'timeout') return 'E6';
+  return null;
 }
-FP.peerErrorText = peerErrorText;
+FP.netError = function (err) {
+  const code = errorCode(err);
+  const e = code ? FP.NET_ERRORS[code] : { title: 'Connection problem', text: 'Something went wrong while connecting. Please try again.' };
+  return { code: code || 'E0', title: e.title, text: e.text, detail: (err && (err.type || err.message)) || 'unknown' };
+};
+FP.peerErrorText = (err) => { const e = FP.netError(err); return e.title + ' — ' + e.text; };
+const webrtcSupported = () => typeof RTCPeerConnection !== 'undefined';
 
 /* ---------------- Host: runs the Server, relays to peers ---------------- */
 class HostTransport {
@@ -82,14 +107,21 @@ class HostTransport {
   start(code) {
     return new Promise((resolve, reject) => {
       if (typeof Peer === 'undefined') return reject(new Error('Networking library failed to load.'));
+      if (!webrtcSupported()) return reject({ type: 'no-webrtc' });
       const peer = new Peer(FP.PEER_PREFIX + code, peerOptions());
       this.peer = peer;
       let opened = false;
-      peer.on('open', () => { opened = true; this.onStatus('on'); resolve(); });
+      const timer = setTimeout(() => { if (!opened) { try { peer.destroy(); } catch (e) {} reject({ code: 'E1', type: 'signalling-timeout' }); } }, 15000);
+      peer.on('open', () => {
+        opened = true; clearTimeout(timer); this.onStatus('on');
+        // Heartbeat so guests notice quickly if this tab closes or loses its connection.
+        this.hb = setInterval(() => { for (const c of this.conns.values()) { if (c.open) { try { c.send({ t: 'hb' }); } catch (e) {} } } }, 4000);
+        resolve();
+      });
       peer.on('connection', (conn) => this._accept(conn));
       peer.on('disconnected', () => { this.onStatus('off'); if (!peer.destroyed) setTimeout(() => { try { peer.reconnect(); } catch (e) {} }, 1500); });
       peer.on('error', (err) => {
-        if (!opened) { peer.destroy(); reject(err); }
+        if (!opened) { clearTimeout(timer); peer.destroy(); reject(err); }
         else if (err.type !== 'peer-unavailable') this.onStatus('off');
       });
     });
@@ -157,6 +189,7 @@ class HostTransport {
     this._drop(pid);
   }
   close() {
+    clearInterval(this.hb);
     for (const c of this.conns.values()) { try { c.send({ t: 'closed' }); } catch (e) {} }
     setTimeout(() => { try { this.peer && this.peer.destroy(); } catch (e) {} }, 200);
   }
@@ -176,22 +209,44 @@ class ClientTransport {
   join(code) {
     return new Promise((resolve, reject) => {
       if (typeof Peer === 'undefined') return reject(new Error('Networking library failed to load.'));
+      if (!webrtcSupported()) return reject({ type: 'no-webrtc' });
       const peer = new Peer(peerOptions());
       this.peer = peer;
       let settled = false;
-      const fail = (e) => { if (settled) return; settled = true; try { peer.destroy(); } catch (x) {} reject(e); };
-      const timer = setTimeout(() => fail({ type: 'timeout', message: 'Timed out connecting to the room.' }), 20000);
-      peer.on('error', (err) => { if (!settled) { clearTimeout(timer); fail(err); } else this.onStatus('off'); });
+      let stage = 'signal'; // signal -> room -> p2p
+      this.stage = (s) => { stage = s; this.onStage && this.onStage(s); };
+      const fail = (e) => { if (settled) return; settled = true; clearTimeout(timer); try { peer.destroy(); } catch (x) {} reject(e); };
+      // Time out per stage so the message says *where* it got stuck.
+      // Past the signalling stage, a missing room is reported within a second or two
+      // ("peer-unavailable"), so a timeout there means the direct connection is blocked.
+      const timer = setTimeout(() => fail(stage === 'signal' ? { code: 'E1', type: 'signalling-timeout' } : { code: 'E3', type: 'ice-timeout-' + stage }), 20000);
+      peer.on('error', (err) => { if (!settled) fail(err); else this.onStatus('off'); });
       peer.on('open', () => {
+        this.stage('room');
+        setTimeout(() => { if (!settled && stage === 'room') this.stage('p2p'); }, 3000);
         const conn = peer.connect(FP.PEER_PREFIX + code, { reliable: true, serialization: 'json' });
         this.conn = conn;
-        conn.on('open', () => { if (settled) return; settled = true; clearTimeout(timer); this.onStatus('on'); resolve(); });
+        conn.on('iceStateChanged', (st) => {
+          if (st === 'checking') this.stage('p2p');
+          if (st === 'failed' && !settled) fail({ code: 'E3', type: 'ice-failed' });
+        });
+        conn.on('error', (err) => { if (!settled) fail({ code: 'E3', type: (err && err.type) || 'webrtc' }); });
+        conn.on('open', () => {
+          if (settled) return;
+          settled = true; clearTimeout(timer); this.onStatus('on');
+          this.lastHeard = Date.now();
+          // Host pings every 4s; 12s of silence means the host's tab is gone.
+          this.watchdog = setInterval(() => {
+            if (Date.now() - this.lastHeard > 12000 && !this.closedByUs) { clearInterval(this.watchdog); this.onStatus('off'); this.onClose(); }
+          }, 2000);
+          resolve();
+        });
         conn.on('data', (d) => {
-          if (!FP.isObj(d) || typeof d.t !== 'string') return;
+          this.lastHeard = Date.now();
+          if (!FP.isObj(d) || typeof d.t !== 'string' || d.t === 'hb') return;
           this.onServerMessage(d);
         });
-        conn.on('close', () => { this.onStatus('off'); if (!this.closedByUs) this.onClose(); });
-        conn.on('error', () => {});
+        conn.on('close', () => { clearInterval(this.watchdog); this.onStatus('off'); if (settled && !this.closedByUs) this.onClose(); });
       });
     });
   }
@@ -202,6 +257,7 @@ class ClientTransport {
   }
   close() {
     this.closedByUs = true;
+    clearInterval(this.watchdog);
     try { if (this.conn && this.conn.open) this.conn.close(); } catch (e) {}
     setTimeout(() => { try { this.peer && this.peer.destroy(); } catch (e) {} }, 50);
   }
@@ -223,6 +279,37 @@ class LocalTransport {
   kick() {}
   close() {}
 }
+
+/* ---------------- Connection check (for troubleshooting) ----------------
+   Tests: can we reach the signalling service, and which ICE candidate types can this
+   network produce? host = local, srflx = via STUN (direct P2P likely OK), relay = via TURN. */
+FP.checkConnection = async function () {
+  const out = { webrtc: webrtcSupported(), signalling: false, stun: false, turn: false };
+  const c = (FP.CONFIG && FP.CONFIG.peer) || {};
+  try {
+    const url = (c.secure ? 'https://' : 'http://') + c.host + ':' + c.port + (c.path || '/').replace(/\/?$/, '/') + 'peerjs/id?ts=' + Date.now();
+    const r = await fetch(url, { cache: 'no-store' });
+    out.signalling = r.ok;
+  } catch (e) { out.signalling = false; }
+  if (!out.webrtc) return out;
+  const servers = (FP.CONFIG && Array.isArray(FP.CONFIG.iceServers) && FP.CONFIG.iceServers.length) ? FP.CONFIG.iceServers
+    : [{ urls: 'stun:stun.l.google.com:19302' }, { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' }];
+  await new Promise((resolve) => {
+    let pc;
+    try { pc = new RTCPeerConnection({ iceServers: servers }); } catch (e) { resolve(); return; }
+    const done = () => { try { pc.close(); } catch (e) {} resolve(); };
+    const t = setTimeout(done, 8000);
+    pc.onicecandidate = (e) => {
+      if (!e.candidate) { clearTimeout(t); done(); return; }
+      const cand = e.candidate.candidate || '';
+      if (/ typ srflx/.test(cand)) out.stun = true;
+      if (/ typ relay/.test(cand)) out.turn = true;
+    };
+    pc.createDataChannel('probe');
+    pc.createOffer().then((o) => pc.setLocalDescription(o)).catch(done);
+  });
+  return out;
+};
 
 FP.HostTransport = HostTransport;
 FP.ClientTransport = ClientTransport;

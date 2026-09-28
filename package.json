@@ -1,0 +1,26 @@
+{
+  "name": "faithplay-io",
+  "version": "2.0.0",
+  "description": "FaithPlay.io — real-time Christian party games (draw & guess, Guess Who, song games, logic puzzles and more) with an authoritative game server.",
+  "type": "module",
+  "main": "server/index.js",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test test/"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "express": "^5.2.1",
+    "helmet": "^8.3.0",
+    "socket.io": "^4.8.4",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.4"
+  }
+}

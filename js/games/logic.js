@@ -121,11 +121,11 @@ FP.makeLogic = function (seed, diff) {
   };
 };
 
-FP.pages.logic = function (root, arg) {
+FP.pages.deduce = function (root, arg) {
   let [diff, seedStr] = String(arg || '').split('-');
   if (!['easy', 'medium', 'hard'].includes(diff)) diff = FP.store.get('logic_diff', 'medium');
   let seed = parseInt(seedStr, 10);
-  if (!Number.isInteger(seed) || seed < 0 || seed > 2 ** 31) { location.replace('#/p/logic/' + diff + '-' + FP.newSeed()); return; }
+  if (!Number.isInteger(seed) || seed < 0 || seed > 2 ** 31) { location.replace('#/p/deduce/' + diff + '-' + FP.newSeed()); return; }
   FP.store.set('logic_diff', diff);
 
   const t0 = Date.now();
@@ -154,7 +154,7 @@ FP.pages.logic = function (root, arg) {
       const secs = Math.round((Date.now() - t0) / 1000);
       FP.sound.play('win');
       FP.modal(h('div', { class: 'stack center' }, h('div', { class: 'big-emoji', text: '🧠' }), h('h2', { text: 'Solved!' }), h('p', { class: 'muted', text: 'You cracked it in ' + Math.floor(secs / 60) + 'm ' + (secs % 60) + 's.' }),
-        h('div', { class: 'row', style: { justifyContent: 'center' } }, h('button', { class: 'btn', type: 'button', onclick: () => FP.share('Can you solve this FaithPlay logic puzzle?', location.href) }, '🔗 Challenge a friend'), h('a', { class: 'btn btn-primary', href: '#/p/logic/' + diff + '-' + FP.newSeed() }, 'Next puzzle ▶'))));
+        h('div', { class: 'row', style: { justifyContent: 'center' } }, h('button', { class: 'btn', type: 'button', onclick: () => FP.share('Can you solve this Hallelujoy logic puzzle?', location.href) }, '🔗 Challenge a friend'), h('a', { class: 'btn btn-primary', href: '#/p/deduce/' + diff + '-' + FP.newSeed() }, 'Next puzzle ▶'))));
       const best = FP.store.get('logic_solved', 0); FP.store.set('logic_solved', best + 1);
     } else if (wrong) { FP.sound.play('bad'); FP.toast('Something doesn\'t add up — ' + FP.plural(wrong, 'mark') + ' conflict with the solution.', 'bad'); }
     else FP.toast('Not finished yet — each row needs one ✓ in every grid.');
@@ -163,8 +163,8 @@ FP.pages.logic = function (root, arg) {
   function render() {
     FP.clear(root);
     const card = h('div', { class: 'card stage' });
-    card.append(FP.ui.stageHead('logic', pz.theme.icon + ' ' + pz.theme.title + ' · puzzle #' + seed, null, null,
-      h('div', { class: 'seg' }, ['easy', 'medium', 'hard'].map((d) => h('button', { type: 'button', class: d === diff ? 'on' : '', onclick: () => { location.hash = '#/p/logic/' + d + '-' + FP.newSeed(); } }, cap(d))))));
+    card.append(FP.ui.stageHead('deduce', pz.theme.icon + ' ' + pz.theme.title + ' · puzzle #' + seed, null, null,
+      h('div', { class: 'seg' }, ['easy', 'medium', 'hard'].map((d) => h('button', { type: 'button', class: d === diff ? 'on' : '', onclick: () => { location.hash = '#/p/deduce/' + d + '-' + FP.newSeed(); } }, cap(d))))));
     card.append(h('p', { class: 'muted small mb', text: pz.theme.intro + ' Use the clues to match each ' + pz.theme.who.label.toLowerCase() + ' with one of each item. Tap a square once for ✗ (no), twice for ✓ (yes).' }));
     const cl = h('ol', { class: 'clue-list' });
     pz.clues.forEach((t, i) => cl.append(h('li', { class: used.has(i) ? 'used' : '', title: 'Tap to cross off', onclick: () => { if (used.has(i)) used.delete(i); else used.add(i); render(); } }, t)));
@@ -192,7 +192,7 @@ FP.pages.logic = function (root, arg) {
           h('button', { class: 'btn', type: 'button', onclick: () => { for (const g of marks) for (const r of g) r.fill(''); render(); } }, 'Reset'),
           h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => { if (!confirm('Reveal the solution?')) return; pz.cats.forEach((_, c) => pz.people.forEach((_, p) => { marks[c][p].fill('x'); marks[c][p][pz.solution[c][p]] = 'o'; })); solved = true; render(); } }, 'Reveal'),
           h('span', { class: 'grow' }),
-          h('button', { class: 'btn btn-sm', type: 'button', onclick: () => FP.share('Can you solve this FaithPlay logic puzzle?', location.href) }, '🔗 Share this puzzle')))));
+          h('button', { class: 'btn btn-sm', type: 'button', onclick: () => FP.share('Can you solve this Hallelujoy logic puzzle?', location.href) }, '🔗 Share this puzzle')))));
     root.append(card);
   }
   render();

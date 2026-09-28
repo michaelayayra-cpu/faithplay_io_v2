@@ -1,4 +1,4 @@
-/* FaithPlay.io — app shell: routing, home page, rooms (host/guest/solo). */
+/* Hallelujoy — app shell: routing, home page, rooms (host/guest/solo). */
 'use strict';
 (() => {
 const { h } = FP;
@@ -76,6 +76,7 @@ class Room {
         break;
       case 'state':
         this.state = m;
+        if (this.solo && m.settings && FP.DIFFS.includes(m.settings.diff)) FP.store.set('solo_diff', m.settings.diff);
         this.renderStage();
         this.renderPlayers();
         break;
@@ -120,7 +121,7 @@ class Room {
     const url = this.inviteUrl();
     const invite = h('div', { class: 'stack mb' },
       h('div', { class: 'row between' }, h('span', { class: 'lbl', style: { margin: 0 }, text: 'Room code' }), h('span', { class: 'room-code', text: this.code })),
-      h('div', { class: 'invite' }, h('code', { text: url }), h('button', { class: 'btn btn-sm btn-primary', type: 'button', onclick: () => FP.share('Join my FaithPlay room!', url) }, 'Invite')));
+      h('div', { class: 'invite' }, h('code', { text: url }), h('button', { class: 'btn btn-sm btn-primary', type: 'button', onclick: () => FP.share('Join my Hallelujoy room!', url) }, 'Invite')));
     const chatCard = h('aside', { class: 'card side chat' }, invite, h('h3', { class: 'mb', text: 'Chat' }), this.feed, form,
       h('button', { class: 'btn btn-ghost btn-sm mt', type: 'button', onclick: () => { location.hash = '#/'; } }, '← Leave room'));
     this.el = h('div', { class: 'room' }, playersCard, stageCard, chatCard);
@@ -181,7 +182,6 @@ class Room {
     if (!st || !FP.MODES[st.mode] || !this.stageBody) return;
     let key = st.phase;
     if (st.phase === 'playing' && st.game) key = st.game.kind;
-    if (key === 'lobby' && this.solo) return; // solo starts immediately
     const make = { lobby: FP.views.lobby, end: FP.views.end, quiz: FP.views.quiz, sketch: FP.views.sketch, gw: FP.views.gw }[key];
     if (!make) return;
     if (key !== this.viewKey) {
@@ -221,7 +221,7 @@ async function hostRoom() {
       tx.onServerMessage = (m) => room.onServerMessage(m);
       tx.onStatus = setStatus;
       setStatus('on');
-      location.hash = '#/r/' + code;
+      location.replace('#/r/' + code);
       tx.sendToServer({ t: 'hello', name: profile.name, avatar: profile.avatar });
       return;
     } catch (err) {
@@ -265,8 +265,7 @@ function playSolo(mode) {
   tx.onServerMessage = (m) => room.onServerMessage(m);
   room.mount(app);
   tx.sendToServer({ t: 'hello', name: profile.name, avatar: profile.avatar });
-  tx.sendToServer({ t: 'settings', s: { mode } });
-  tx.sendToServer({ t: 'start' });
+  tx.sendToServer({ t: 'settings', s: { mode, diff: FP.store.get('solo_diff', 'medium') } });
 }
 
 /* ---------------- simple screens ---------------- */
@@ -283,34 +282,52 @@ function showError(title, msg) {
     h('div', { class: 'row mt', style: { justifyContent: 'center' } }, h('a', { class: 'btn btn-primary', href: '#/' }, 'Back to games'))));
 }
 
-function gameCard(k, onClick, big = true) {
+// Each game card is a real link, so right-click → "Open in new tab" (and middle-click,
+// Ctrl/Cmd-click) work. A plain left-click opens a quick "solo or with friends?" chooser.
+function gameHref(k) {
   const m = FP.MODES[k];
-  return h('button', { type: 'button', class: 'game-card', style: { '--hue': m.hue }, onclick: onClick },
+  if (m.kind === 'puzzle') return '#/p/' + k;
+  if (k === 'sketch') return '#/host/sketch';
+  return '#/play/' + k;
+}
+function gameCard(k) {
+  const m = FP.MODES[k];
+  const a = h('a', { class: 'game-card', href: gameHref(k), style: { '--hue': m.hue } },
     h('div', { class: 'row', style: { gap: '12px', flexWrap: 'nowrap' } }, h('div', { class: 'game-icon', text: m.icon }), h('h3', { text: m.title })),
-    big ? h('p', { text: m.desc }) : null,
+    h('p', { text: m.desc }),
     h('div', { class: 'game-tags' }, m.tags.map((t) => h('span', { class: 'chip', text: t })),
       m.kind === 'quiz' ? h('span', { class: 'chip primary', text: 'Solo & rooms' }) : null));
+  a.addEventListener('click', (e) => {
+    if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return; // let the browser open a new tab/window
+    if (m.kind === 'puzzle') return; // normal navigation
+    e.preventDefault();
+    openGame(k);
+  });
+  return a;
 }
 
 function openGame(k) {
   const m = FP.MODES[k];
-  if (m.kind === 'puzzle') { location.hash = k === 'faithle' ? '#/p/faithle' : '#/p/' + k; return; }
+  if (m.kind === 'puzzle') { location.hash = '#/p/' + k; return; }
   if (FP.room && FP.room.role === 'host' && FP.room.isHost) {
     FP.room.send({ t: 'settings', s: { mode: k } });
     location.hash = '#/r/' + FP.room.code;
     return;
   }
+  let close;
+  const link = (href, cls, text) => h('a', { class: 'btn btn-lg ' + cls, href, onclick: () => close && close() }, text);
   if (k === 'sketch') {
-    const close = FP.modal(h('div', { class: 'stack' }, h('div', { class: 'big-emoji', text: '🎨' }), h('h2', { text: 'Sketch & Guess is multiplayer' }),
+    close = FP.modal(h('div', { class: 'stack' }, h('div', { class: 'big-emoji', text: '🎨' }), h('h2', { text: 'Sketch & Guess is multiplayer' }),
       h('p', { class: 'muted', text: 'Create a free room and send the link to friends, family or your youth group. Everyone joins in their browser — no sign-up.' }),
-      h('button', { class: 'btn btn-primary btn-lg', type: 'button', onclick: () => { close(); pendingMode = 'sketch'; hostRoom(); } }, 'Create a room')));
+      link('#/host/sketch', 'btn-primary', 'Create a room')));
     return;
   }
-  const close = FP.modal(h('div', { class: 'stack' },
+  close = FP.modal(h('div', { class: 'stack' },
     h('div', { class: 'row' }, h('div', { class: 'game-icon', style: { '--hue': m.hue }, text: m.icon }), h('h2', { text: m.title })),
     h('p', { class: 'muted', text: m.desc }),
-    h('button', { class: 'btn btn-primary btn-lg', type: 'button', onclick: () => { close(); location.hash = '#/play/' + k; } }, k === 'guesswho' ? '🤖 Play vs computer' : '▶ Play solo'),
-    h('button', { class: 'btn btn-lg', type: 'button', onclick: () => { close(); pendingMode = k; hostRoom(); } }, '👥 Play with friends (create room)')));
+    link('#/play/' + k, 'btn-primary', k === 'guesswho' ? '🤖 Play vs computer' : '▶ Play solo'),
+    link('#/host/' + k, '', '👥 Play with friends (create room)'),
+    h('p', { class: 'tiny muted center', text: 'Tip: right-click any game to open it in a new tab.' })));
 }
 let pendingMode = null;
 
@@ -361,7 +378,7 @@ function renderHome() {
   ];
   sections.forEach(([grp, title, sub]) => {
     app.append(h('div', { class: 'section-title' }, h('h2', { text: title }), h('p', { text: sub })));
-    app.append(h('div', { class: 'games' }, Object.keys(FP.MODES).filter((k) => FP.MODES[k].group === grp).map((k) => gameCard(k, () => openGame(k)))));
+    app.append(h('div', { class: 'games' }, Object.keys(FP.MODES).filter((k) => FP.MODES[k].group === grp).map((k) => gameCard(k))));
   });
   app.append(h('div', { class: 'card mt small muted' },
     h('h3', { class: 'mb', style: { color: 'var(--text)' }, text: '🔒 Safe by design' }),
@@ -399,6 +416,11 @@ function route() {
       return;
     }
     return joinRoom(code);
+  }
+  if (a === 'host' && b && FP.MODES[b] && FP.MODES[b].kind !== 'puzzle') {
+    pendingMode = b;
+    if (FP.room && FP.room.role === 'host' && !FP.room.dead) { location.replace('#/r/' + FP.room.code); return; }
+    return hostRoom();
   }
   if (a === 'play' && b && FP.MODES[b]) {
     if (b === 'guesswho') { FP.clear(app); return FP.pages.guesswho(app); }

@@ -1,4 +1,4 @@
-/* FaithPlay.io — clean, modern UI. Poppins throughout. */
+/* Hallelujoy — clean, modern UI. Poppins throughout. */
 :root {
   --bg: #f6f5fb;
   --surface: #ffffff;
@@ -180,6 +180,7 @@ label.lbl { display: block; font-size: .72rem; font-weight: 600; text-transform:
 .filters { display: flex; gap: 8px; flex-wrap: wrap; }
 .games { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
 .game-card {
+  color: var(--text); text-decoration: none;
   text-align: left; border: 1px solid var(--line); background: var(--surface); border-radius: var(--radius);
   padding: 16px; cursor: pointer; display: flex; flex-direction: column; gap: 10px; box-shadow: var(--shadow);
   transition: transform .12s ease, box-shadow .15s ease, border-color .15s ease; position: relative;
@@ -430,3 +431,27 @@ label.lbl { display: block; font-size: .72rem; font-weight: 600; text-transform:
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ---------- Clue Chain Grid ---------- */
+.seg a { padding: 6px 12px; border-radius: 9px; font-size: .8rem; font-weight: 600; color: var(--muted); }
+.seg a.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+.chain-latest .q-prompt { font-size: clamp(1rem, 2.2vw, 1.25rem); }
+.chain-scroll { overflow-x: auto; }
+.chain-grid { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 6px; min-width: calc(var(--n) * 96px); }
+.chain-cell {
+  min-height: 108px; border-radius: 12px; border: 2px dashed var(--line); background: var(--surface-2); padding: 8px 6px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; text-align: center; cursor: pointer;
+  transition: border-color .15s, background .15s, transform .1s;
+}
+.chain-cell:hover:not(.open) { border-color: var(--primary); }
+.chain-cell .cq { font-size: 1.6rem; font-weight: 800; color: var(--muted); line-height: 1; }
+.chain-cell .ct { font-size: .64rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.chain-cell b { font-size: .84rem; line-height: 1.15; }
+.chain-cell .cc { font-size: .7rem; line-height: 1.25; color: var(--text); opacity: .85; }
+.chain-cell.open { border-style: solid; border-color: var(--ok); background: var(--ok-soft); cursor: default; animation: pop .3s ease; }
+.chain-cell.start { border-color: var(--accent); background: var(--accent-soft); }
+.chain-cell.sel { border-style: solid; border-color: var(--primary); background: var(--primary-soft); transform: scale(1.03); }
+.chain-cell.target:not(.sel) { border-color: var(--primary); }
+.chain-cell.missed { border-color: var(--bad); background: var(--bad-soft); }
+.skip-bar { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.chip.warn { background: var(--accent-soft); color: var(--warn); }

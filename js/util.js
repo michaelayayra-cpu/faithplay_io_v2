@@ -1,4 +1,4 @@
-/* FaithPlay.io — shared utilities (DOM, RNG, text matching, storage, sound, security helpers) */
+/* Hallelujoy — shared utilities (DOM, RNG, text matching, storage, sound, security helpers) */
 'use strict';
 
 const FP = (window.FP = window.FP || {});
@@ -6,7 +6,7 @@ const FP = (window.FP = window.FP || {});
 // Frame-busting: refuse to run inside someone else's frame (clickjacking defence).
 if (window.top !== window.self) {
   try { window.top.location = window.self.location.href; } catch (e) { document.documentElement.textContent = ''; }
-  throw new Error('FaithPlay refuses to run in a frame');
+  throw new Error('Hallelujoy refuses to run in a frame');
 }
 
 /* ------------------------------------------------------------------ */
@@ -20,7 +20,7 @@ FP.h = function h(tag, props, ...kids) {
       if (v == null || v === false) continue;
       if (k === 'class') el.className = v;
       else if (k === 'text') el.textContent = v;
-      else if (k === 'style') Object.assign(el.style, v);
+      else if (k === 'style') { for (const [sk, sv] of Object.entries(v)) { if (sk.startsWith('--')) el.style.setProperty(sk, sv); else el.style[sk] = sv; } }
       else if (k === 'dataset') Object.assign(el.dataset, v);
       else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
       else if (k === 'href' && typeof v === 'string' && !/^(#|https?:)/.test(v)) continue; // no javascript: urls

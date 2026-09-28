@@ -1,8 +1,8 @@
-# FaithPlay.io ✝️
+# Hallelujoy ✝️
 
-Free Christian party games in the browser, in the spirit of skribbl.io. Create a room, share the link, and play with friends, family or your youth group. There's nothing to install and no sign-up.
+*Hallelujah + joy.* Free Christian party games in the browser, in the spirit of skribbl.io. Create a room, share the link, and play with friends, family or your youth group. There's nothing to install and no sign-up.
 
-## Games (13)
+## Games (14)
 
 | Game | Type | Notes |
 |---|---|---|
@@ -15,10 +15,18 @@ Free Christian party games in the browser, in the spirit of skribbl.io. Create a
 | 💬 **Who Said It?** | Solo / room | 48 KJV quotes. |
 | 🔀 **Scripture Scramble** | Solo / room | 149 words. Letter hints appear as the timer runs down. |
 | 🎲 **Revival Mix** | Solo / room | A random mix of all the quiz types. |
-| 🧩 **Logic Grid** | Solo, shareable | Sporcle-style deduction puzzles, generated from a seed and **guaranteed to have exactly one solution**. Easy, medium and hard. |
-| 🔗 **Bible Connections** | Solo, shareable | Group 16 words into 4 hidden categories. Groups are checked so each word fits only one of them. |
-| 📅 **Order It** | Solo, shareable | Put books, timelines and lives in order. |
+| 🧩 **Clue Chain Grid** | Solo, shareable | Sporcle click-grid style. One box starts solved and every solved box gives a clue to another box ("Directly below me is my older sister"). You click that box and name the Bible person, place, object or book. Grids are 3×3 (easy), 4×4 (medium) or 5×5 (hard). |
+| 🔎 **Deduction Grid** | Solo, shareable | Classic logic-grid puzzles in imagined Bible scenes, **guaranteed to have exactly one solution**. Easy, medium and hard. |
+| 🔗 **Bible Connections** | Solo, shareable | Group 16 words into 4 hidden categories. Groups are checked so each word fits only one of them. Easy shows the category names and allows 6 mistakes; hard uses deep-cut categories and allows 3. |
+| 📅 **Order It** | Solo, shareable | Put books, timelines and lives in order. Easy: 4 items, 4 tries. Medium: 5–6 items, 3 tries. Hard: 7 items, 2 tries. |
 | 🟩 **Faithle** | Daily | Wordle with 5-letter faith words. |
+
+**Quiz options:**
+- **Difficulty (Easy / Medium / Hard).** Easy uses famous questions, gives 3 choices instead of 4, adds extra time and more hints. Hard uses deep cuts and less time.
+- **⏭ Skip for now.** Sends the question to the end, so you come back to it after the others. In a room, a question is saved for later if anyone skips it, and answers already given still count.
+- **🤷 I don't know.** Passes on the question.
+
+**Open in a new tab:** every game card is a real link, so right-click → *Open in new tab* works. `#/host/<game>` opens a new room with that game already selected.
 
 **Keeping it fresh:** the game remembers which questions you've seen recently (in your browser) and shows new ones first. Guess Who boards, logic puzzles, Connections and Order It are generated randomly each time, so they can go on indefinitely.
 
@@ -27,8 +35,9 @@ Free Christian party games in the browser, in the spirit of skribbl.io. Create a
 ## Shareable links
 
 - Room invite: `https://your-site/#/r/ABC123`
+- New room with a game picked: `#/host/sketch`, `#/host/trivia`, …
 - Solo quiz: `#/play/trivia`, `#/play/song`, `#/play/whoami`, `#/play/guesswho`, …
-- One specific puzzle, so a friend gets exactly the same one: `#/p/logic/medium-123456`, `#/p/connections/98765`, `#/p/orderit/4242`
+- One specific puzzle, so a friend gets exactly the same one: `#/p/logic/medium-123456` (Clue Chain), `#/p/deduce/hard-55`, `#/p/connections/easy-98765`, `#/p/orderit/hard-4242`
 - Today's Faithle: `#/p/faithle`
 
 ## How multiplayer works
@@ -84,3 +93,7 @@ legacy/               the original single-file prototype
 ```
 
 To add content, edit the arrays in `js/data/`. No build step is needed.
+
+## Custom domain
+
+The `CNAME` file sets the custom domain for GitHub Pages. After you register your domain (for example `hallelujoy.com`), put it in `CNAME` and point your DNS at GitHub Pages.

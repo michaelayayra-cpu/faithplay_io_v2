@@ -123,9 +123,12 @@ class Server {
   /* ---------- game flow ---------- */
   applySettings(s) {
     if (typeof s.mode === 'string' && FP.ROOM_MODES.includes(s.mode) && s.mode !== this.mode) {
+      const keepDiff = this.settings.diff;
       this.mode = s.mode;
       this.settings = Object.assign({}, FP.MODES[s.mode].defaults);
+      if (keepDiff && this.settings.diff) this.settings.diff = keepDiff;
     }
+    if (FP.DIFFS.includes(s.diff) && this.settings.diff) this.settings.diff = s.diff;
     const kind = FP.MODES[this.mode].kind;
     const R = kind === 'quiz' ? [3, 30] : [1, 6];
     const T = kind === 'sketch' ? [30, 180] : kind === 'gw' ? [60, 300] : [10, 60];
@@ -180,95 +183,125 @@ class QuizEngine {
   start() {
     const s = this.srv.settings;
     this.qs = FP.GEN[this.srv.mode](s.rounds, FP.mathRng(), s);
-    this.i = -1;
+    this.queue = this.qs.map((_, i) => i);
+    this.finished = 0;
+    this.idx = -1;
     this.next();
+  }
+  // Per-question memory survives a skip, so answers already given still count on the revisit.
+  mem(q) {
+    if (!q.st) q.st = { picks: new Map(), correct: new Set(), gained: new Map(), idk: new Set(), visits: 0, shown: q.startClues || 1, mask: null, hints: 0 };
+    return q.st;
   }
   next() {
     this.clearTimers();
-    this.i++;
-    if (this.i >= this.qs.length) return this.srv.endGame();
-    const q = (this.q = this.qs[this.i]);
+    if (!this.queue.length) return this.srv.endGame();
+    this.idx = this.queue.shift();
+    const q = (this.q = this.qs[this.idx]);
+    const st = (this.st = this.mem(q));
+    st.visits++;
+    this.skips = new Set();
     this.phase = 'q';
-    this.picks = new Map();
-    this.correct = new Set();
-    this.gained = new Map();
+    const mult = FP.DIFF_TIME[this.srv.settings.diff] || 1;
     const secs = q.kind === 'text' && this.srv.mode === 'mix' ? q.time : this.srv.settings.time;
-    this.dur = secs * 1000;
+    this.dur = Math.round(secs * mult) * 1000;
     this.t0 = Date.now();
     this.deadline = this.t0 + this.dur;
     if (q.kind === 'text') {
       if (q.type === 'clues') {
-        this.shown = 1;
-        const step = this.dur / q.clues.length;
-        for (let k = 1; k < q.clues.length; k++) this.later(() => { this.shown = k + 1; this.srv.pushState(); }, step * k);
+        const left = q.clues.length - st.shown;
+        const step = this.dur / (left + 1);
+        for (let k = 1; k <= left; k++) this.later(() => { st.shown = Math.min(q.clues.length, st.shown + 1); this.srv.pushState(); }, step * k);
       } else {
         const letters = q.answer.toUpperCase().split('');
-        this.mask = letters.map((ch) => (/[A-Z]/.test(ch) ? '_' : ch));
-        this.hints = 0;
+        if (!st.mask) {
+          st.mask = letters.map((ch) => (/[A-Z]/.test(ch) ? '_' : ch));
+          if (q.firstLetter) st.mask[0] = letters[0];
+        }
         const reveal = () => {
-          const hidden = this.mask.map((c, idx) => (c === '_' ? idx : -1)).filter((x) => x >= 0);
+          const hidden = st.mask.map((c, i) => (c === '_' ? i : -1)).filter((x) => x >= 0);
           if (hidden.length <= 2) return;
-          const idx = hidden[Math.floor(Math.random() * hidden.length)];
-          this.mask[idx] = letters[idx];
-          this.hints++;
+          const i = hidden[Math.floor(Math.random() * hidden.length)];
+          st.mask[i] = letters[i];
+          st.hints++;
           this.srv.pushState();
         };
-        [0.35, 0.55, 0.75].forEach((f) => this.later(reveal, this.dur * f));
+        (q.hintAt || [0.35, 0.55, 0.75]).forEach((f) => this.later(reveal, this.dur * f));
       }
     }
-    this.later(() => this.reveal(), this.dur);
+    this.later(() => this.finish(), this.dur);
     this.srv.pushState();
+    if (this.everyoneDone()) this.finish();
   }
   frac() { return Math.max(0, Math.min(1, (this.deadline - Date.now()) / this.dur)); }
+  answered(pid) { return this.q.kind === 'mc' ? this.st.picks.has(pid) : this.st.correct.has(pid); }
+  isDone(pid) { return this.answered(pid) || this.st.idk.has(pid) || this.skips.has(pid); }
+  everyoneDone() { return this.srv.players.size > 0 && [...this.srv.players.keys()].every((pid) => this.isDone(pid)); }
   publicState() {
-    const q = this.q;
+    const q = this.q; const st = this.st;
     const pub = { kind: q.kind, type: q.type, prompt: q.prompt, sub: q.sub, cat: q.cat, emoji: q.emoji, melody: q.melody, bpm: q.bpm };
     if (q.kind === 'mc') pub.choices = q.choices;
-    if (q.type === 'clues') { pub.clues = q.clues.slice(0, this.shown); pub.totalClues = q.clues.length; }
-    if (q.type === 'scramble') { pub.scramble = q.scramble; pub.mask = this.mask.join(' '); }
-    const st = {
-      kind: 'quiz', phase: this.phase, i: this.i, n: this.qs.length, dur: this.dur, remaining: Math.max(0, this.deadline - Date.now()),
-      answered: q.kind === 'mc' ? [...this.picks.keys()] : [...this.correct], q: pub,
+    if (q.type === 'clues') { pub.clues = q.clues.slice(0, st.shown); pub.totalClues = q.clues.length; if (q.showLen) pub.len = q.answer.replace(/[^a-z]/gi, '').length; }
+    if (q.type === 'scramble') { pub.scramble = q.scramble; pub.mask = st.mask.join(' '); }
+    const done = [...this.srv.players.keys()].filter((pid) => this.isDone(pid));
+    const res = {
+      kind: 'quiz', phase: this.phase, num: this.phase === 'reveal' ? this.finished : this.finished + 1, n: this.qs.length, key: this.idx + ':' + st.visits,
+      dur: this.dur, remaining: Math.max(0, this.deadline - Date.now()),
+      revisit: st.visits > 1, waiting: this.queue.filter((i) => this.qs[i].st).length,
+      answered: done, prior: [...this.srv.players.keys()].filter((pid) => this.answered(pid) && st.visits > 1), skipped: [...this.skips], q: pub,
     };
     if (this.phase === 'reveal') {
-      st.reveal = { answer: q.answer, correct: q.kind === 'mc' ? q.correct : null, explain: q.explain || null, picks: Object.fromEntries(this.picks), gained: Object.fromEntries(this.gained) };
+      res.reveal = { answer: q.answer, correct: q.kind === 'mc' ? q.correct : null, explain: q.explain || null, picks: Object.fromEntries(st.picks), gained: Object.fromEntries(st.gained), idk: [...st.idk] };
     }
-    return st;
+    return res;
   }
   onMessage(pid, m) {
-    if (m.t === 'next' && this.srv.isHost(pid) && this.phase === 'reveal') return this.next();
-    if (m.t !== 'answer' || this.phase !== 'q') return;
-    const q = this.q;
+    if (m.t === 'next' && this.srv.isHost(pid) && (this.phase === 'reveal' || this.phase === 'skipped')) return this.next();
+    if (this.phase !== 'q' || this.isDone(pid)) return;
+    if (m.t === 'skip') {
+      // First look only: on a revisit, "skip" means "I don't know".
+      if (this.st.visits > 1) this.st.idk.add(pid); else this.skips.add(pid);
+      this.srv.pushState();
+      if (this.everyoneDone()) this.finish();
+      return;
+    }
+    if (m.t === 'idk') {
+      this.st.idk.add(pid);
+      this.srv.pushState();
+      if (this.everyoneDone()) this.finish();
+      return;
+    }
+    if (m.t !== 'answer') return;
+    const q = this.q; const st = this.st;
     if (q.kind === 'mc') {
-      if (this.picks.has(pid)) return;
       const c = FP.clampInt(m.c, 0, q.choices.length - 1);
       if (c == null) return;
-      this.picks.set(pid, c);
+      st.picks.set(pid, c);
       if (c === q.correct) {
         const pts = 500 + Math.round(500 * this.frac());
         this.srv.addScore(pid, pts);
-        this.gained.set(pid, pts);
+        st.gained.set(pid, pts);
       }
       this.srv.pushState();
-      if (this.picks.size >= this.srv.players.size) this.reveal();
+      if (this.everyoneDone()) this.finish();
     } else {
-      if (this.correct.has(pid) || typeof m.text !== 'string') return;
+      if (typeof m.text !== 'string') return;
       const text = FP.cleanText(m.text, 60);
       if (!text) return;
-      const res = FP.checkAnswer(text, [q.answer, ...(q.acc || [])]);
-      if (res === 'yes') {
-        this.correct.add(pid);
+      const r = FP.checkAnswer(text, [q.answer, ...(q.acc || [])]);
+      if (r === 'yes') {
+        st.correct.add(pid);
         let pts;
-        if (q.type === 'clues') pts = Math.round((1000 - 180 * (this.shown - 1)) * (0.55 + 0.45 * this.frac()));
-        else pts = Math.max(100, Math.round(300 + 700 * this.frac()) - 120 * this.hints);
+        if (q.type === 'clues') pts = Math.round((1000 - 180 * (st.shown - 1)) * (0.55 + 0.45 * this.frac()));
+        else pts = Math.max(100, Math.round(300 + 700 * this.frac()) - 120 * st.hints);
         this.srv.addScore(pid, pts);
-        this.gained.set(pid, pts);
+        st.gained.set(pid, pts);
         this.srv.sendTo(pid, { t: 'you', ok: true, answer: q.answer, pts });
         if (!this.srv.solo) this.srv.sys(this.srv.name(pid) + ' got it! +' + pts, 'good');
         this.srv.pushPlayers();
         this.srv.pushState();
-        if (this.correct.size >= this.srv.players.size) this.reveal();
-      } else if (res === 'close') {
+        if (this.everyoneDone()) this.finish();
+      } else if (r === 'close') {
         this.srv.sendTo(pid, { t: 'chat', kind: 'close', text: '"' + text + '" is close!' });
       } else {
         this.srv.sendTo(pid, { t: 'you', ok: false });
@@ -278,28 +311,35 @@ class QuizEngine {
   }
   onChat(pid, text) {
     if (this.phase !== 'q' || this.q.kind !== 'text') return false;
-    if (this.correct.has(pid)) {
+    if (this.st.correct.has(pid)) {
       // Players who already know the answer can only talk to each other (no spoilers).
-      for (const id of this.correct) this.srv.sendTo(id, { t: 'chat', kind: 'secret', id: pid, name: this.srv.name(pid), text });
+      for (const id of this.st.correct) this.srv.sendTo(id, { t: 'chat', kind: 'secret', id: pid, name: this.srv.name(pid), text });
       return true;
     }
+    if (this.isDone(pid)) return false;
     this.onMessage(pid, { t: 'answer', text });
     return true;
   }
-  reveal() {
-    if (this.phase === 'reveal') return;
+  // Time's up or everyone is done: park the question for later if someone skipped it, else reveal.
+  finish() {
+    if (this.phase !== 'q') return;
     this.clearTimers();
+    if (this.skips.size && this.st.visits === 1) {
+      this.queue.push(this.idx);
+      this.phase = 'skipped';
+      this.srv.pushState();
+      if (!this.srv.solo) this.srv.sys('⏭ Question skipped — we\'ll come back to it at the end.');
+      this.later(() => this.next(), this.srv.solo ? 900 : 2200);
+      return;
+    }
     this.phase = 'reveal';
+    this.finished++;
     this.srv.pushPlayers();
     this.srv.pushState();
     this.later(() => this.next(), this.srv.solo ? 6000 : 5500);
   }
   onJoin() {}
-  onLeave() {
-    if (this.phase !== 'q') return;
-    const done = this.q.kind === 'mc' ? this.picks.size : this.correct.size;
-    if (this.srv.players.size > 0 && done >= this.srv.players.size) this.reveal();
-  }
+  onLeave() { if (this.phase === 'q' && this.everyoneDone()) this.finish(); }
   stop() { this.clearTimers(); }
 }
 

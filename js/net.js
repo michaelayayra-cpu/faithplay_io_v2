@@ -4,7 +4,7 @@
 'use strict';
 (() => {
 
-FP.PEER_PREFIX = 'faithplay-io-v2-';
+FP.PEER_PREFIX = 'hallelujoy-v1-';
 FP.MAX_PLAYERS = 12;
 FP.MAX_MSG_CHARS = 12000;
 
@@ -31,6 +31,8 @@ FP.CLIENT_SCHEMA = {
   start: () => true,
   lobby: () => true,
   next: () => true,
+  skip: () => true,
+  idk: () => true,
   kick: (m) => str(m.id, 80),
   lock: (m) => typeof m.on === 'boolean',
   pick: (m) => Number.isInteger(m.i),

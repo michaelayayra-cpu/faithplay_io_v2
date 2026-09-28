@@ -41,6 +41,23 @@ FP.CONN_GROUPS = [
   ['Words of Praise', ['Hosanna', 'Hallelujah', 'Amen', 'Maranatha', 'Glory']],
 ].filter((g) => g[1].length >= 4);
 
+// Connections difficulty per group: 1 = well known, 2 = needs some Bible knowledge, 3 = deep cut.
+FP.CONN_LEVEL = {
+  'Fruit of the Spirit': 1, 'Plagues of Egypt': 1, 'The Twelve Apostles': 1, 'The Four Gospels': 1, 'Famous Bible Animals': 1,
+  'Parables of Jesus': 1, 'On Noah\'s Ark (people)': 1, 'Christmas Story': 1, 'Easter Story': 1, 'Words of Praise': 1, 'Books of the Law': 1,
+  'Sons of Jacob': 2, 'Minor Prophets': 2, 'Letters of Paul': 2, 'Armour of God': 2, 'Bible Rivers': 2, 'Bible Mountains': 2,
+  'Instruments of Praise': 2, 'Poetry & Wisdom Books': 2, '"I AM" Sayings of Jesus': 2, 'Names of God (Hebrew)': 2, 'Queens in the Bible': 2,
+  '"Thank you" in African languages': 2, '"God" in African languages': 2, 'Blessed are the…': 2, 'Bible Trees & Plants': 2, 'African Gospel Artists': 2,
+  'Judges of Israel': 3, 'Kings of Judah': 3, 'Churches of Revelation': 3, 'Paul\'s Travel Companions': 3, 'Things in the Tabernacle': 3,
+  'Wives of Jacob': 3, 'Hymn Writers': 3,
+};
+// Order It difficulty per set, and a famous-books subset for easy mode.
+FP.ORDER_LEVEL = {
+  'Books of the Bible': 2, 'Bible Timeline': 1, 'Life of Jesus': 1, 'Days of Creation': 1, 'Biggest Numbers': 1, 'Life of Moses': 2,
+  'Life of David': 2, 'Holy Week': 2, 'Patriarchs & Leaders': 2, 'Life of Paul': 3, 'Family Line to David': 3, 'Judges of Israel': 3, 'Early Kings': 3,
+};
+FP.EASY_BOOKS = ['Genesis', 'Exodus', 'Ruth', 'Esther', 'Job', 'Psalms', 'Proverbs', 'Isaiah', 'Daniel', 'Jonah', 'Matthew', 'Mark', 'Luke', 'John', 'Acts', 'Romans', 'Revelation'];
+
 // Order It — each set is in the correct order; a random contiguous-or-sampled subset is shown.
 FP.ORDER_SETS = [
   { title: 'Books of the Bible', hint: 'Put these books in Bible order', items: ['Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy', 'Joshua', 'Judges', 'Ruth', '1 Samuel', '2 Samuel', '1 Kings', '2 Kings', '1 Chronicles', '2 Chronicles', 'Ezra', 'Nehemiah', 'Esther', 'Job', 'Psalms', 'Proverbs', 'Ecclesiastes', 'Song of Songs', 'Isaiah', 'Jeremiah', 'Lamentations', 'Ezekiel', 'Daniel', 'Hosea', 'Joel', 'Amos', 'Obadiah', 'Jonah', 'Micah', 'Nahum', 'Habakkuk', 'Zephaniah', 'Haggai', 'Zechariah', 'Malachi', 'Matthew', 'Mark', 'Luke', 'John', 'Acts', 'Romans', '1 Corinthians', '2 Corinthians', 'Galatians', 'Ephesians', 'Philippians', 'Colossians', '1 Thessalonians', '2 Thessalonians', '1 Timothy', '2 Timothy', 'Titus', 'Philemon', 'Hebrews', 'James', '1 Peter', '2 Peter', '1 John', '2 John', '3 John', 'Jude', 'Revelation'], weight: 3 },
@@ -58,56 +75,98 @@ FP.ORDER_SETS = [
   { title: 'Biggest Numbers', hint: 'Smallest first', items: ['Days Jonah was in the fish (3)', 'Loaves that fed 5,000 (5)', 'Tribes of Israel (12)', 'Days of rain in the flood (40)', 'Gideon\'s army (300)', 'Methuselah\'s age (969)'], weight: 1 },
 ];
 
-// Logic Grid themes. Numeric categories are ordered (index = rank) and allow comparison clues.
+// Logic Grid themes — every puzzle stars Bible characters. The scenarios are imaginary
+// ("what if…") so any combination can be the answer; the fun is in the deduction.
+// Numeric categories are ordered (index = rank) and allow comparison clues.
 FP.LOGIC_THEMES = [
   {
     id: 'fishing', title: 'Fishing on Galilee', icon: '🎣',
-    intro: 'After a long night, some disciples came back with different catches in different boats.',
+    intro: 'Imagine the disciples split up for a night of fishing, each in a different boat with different bait.',
     who: { label: 'Disciple', items: ['Peter', 'Andrew', 'James', 'John', 'Thomas', 'Philip', 'Nathanael', 'Matthew'] },
     cats: [
-      { label: 'Fish', numeric: true, items: ['3 fish', '5 fish', '7 fish', '9 fish', '11 fish'], ref: 'the disciple who caught {x}', has: 'caught {x}', not: 'did not catch {x}', more: 'caught more fish than', less: 'caught fewer fish than', next: 'caught exactly two more fish than' },
+      { label: 'Fish', numeric: true, items: ['3 fish', '5 fish', '7 fish', '9 fish', '11 fish', '13 fish'], ref: 'the disciple who caught {x}', has: 'caught {x}', not: 'did not catch {x}', more: 'caught more fish than', less: 'caught fewer fish than', next: 'caught exactly two more fish than' },
       { label: 'Boat', items: ['red', 'blue', 'green', 'white', 'yellow'], ref: 'the disciple in the {x} boat', has: 'sailed the {x} boat', not: 'did not sail the {x} boat' },
-      { label: 'Bait', items: ['bread', 'worms', 'nets only', 'figs', 'crickets'], ref: 'the disciple who used {x}', has: 'used {x}', not: 'did not use {x}' },
+      { label: 'Bait', items: ['bread', 'worms', 'figs', 'crickets', 'barley'], ref: 'the disciple who used {x}', has: 'used {x}', not: 'did not use {x}' },
     ],
   },
   {
-    id: 'potluck', title: 'Church Potluck', icon: '🍲',
-    intro: 'After Sunday service, each guest brought a dish and a drink and arrived at a different time.',
-    who: { label: 'Guest', items: ['Ada', 'Kofi', 'Wanjiru', 'Thabo', 'Grace', 'Samuel', 'Chioma', 'Musa', 'Esther', 'Tendai'] },
+    id: 'cana', title: 'The Wedding Feast at Cana', icon: '🍷',
+    intro: 'Imagine friends of Jesus arriving at the wedding in Cana, each bringing a dish and a gift for the couple.',
+    who: { label: 'Guest', items: ['Mary', 'Martha', 'Lazarus', 'Nicodemus', 'Zacchaeus', 'Joanna', 'Nathanael', 'Bartimaeus', 'Susanna'] },
     cats: [
-      { label: 'Arrival', numeric: true, items: ['12:00', '12:15', '12:30', '12:45', '1:00'], ref: 'the guest who arrived at {x}', has: 'arrived at {x}', not: 'did not arrive at {x}', more: 'arrived later than', less: 'arrived earlier than', next: 'arrived exactly 15 minutes after' },
-      { label: 'Dish', items: ['jollof rice', 'waakye', 'ugali', 'bobotie', 'chapati', 'suya'], ref: 'the guest who brought {x}', has: 'brought {x}', not: 'did not bring {x}' },
-      { label: 'Drink', items: ['zobo', 'chai', 'sobolo', 'rooibos tea', 'ginger beer', 'lemonade'], ref: 'the guest with {x}', has: 'brought {x}', not: 'did not bring {x}' },
+      { label: 'Arrival', numeric: true, items: ['noon', '1 o\'clock', '2 o\'clock', '3 o\'clock', '4 o\'clock', '5 o\'clock'], ref: 'the guest who arrived at {x}', has: 'arrived at {x}', not: 'did not arrive at {x}', more: 'arrived later than', less: 'arrived earlier than', next: 'arrived exactly one hour after' },
+      { label: 'Dish', items: ['barley loaves', 'figs', 'olives', 'lentil stew', 'honeycomb', 'dates'], ref: 'the guest who brought {x}', has: 'brought {x}', not: 'did not bring {x}' },
+      { label: 'Gift', items: ['a lamp', 'a water jar', 'a linen cloth', 'a clay bowl', 'a basket', 'a flask of oil'], ref: 'the guest who gave {x}', has: 'gave {x}', not: 'did not give {x}' },
     ],
   },
   {
-    id: 'choir', title: 'Choir Rehearsal', icon: '🎶',
-    intro: 'The choir director assigned each singer a seat row, a voice part and a solo hymn.',
-    who: { label: 'Singer', items: ['Abena', 'Daniel', 'Ruth', 'Tunde', 'Naledi', 'Joy', 'Kwame', 'Faith', 'Emeka'] },
+    id: 'temple', title: 'Temple Musicians', icon: '🎶',
+    intro: 'Imagine a grand praise service where famous Bible singers each play an instrument and lead a Psalm.',
+    who: { label: 'Musician', items: ['David', 'Asaph', 'Miriam', 'Deborah', 'Heman', 'Jeduthun', 'Hannah', 'Chenaniah'] },
     cats: [
-      { label: 'Row', numeric: true, items: ['row 1', 'row 2', 'row 3', 'row 4', 'row 5'], ref: 'the singer in {x}', has: 'sits in {x}', not: 'does not sit in {x}', more: 'sits further back than', less: 'sits nearer the front than', next: 'sits exactly one row behind' },
-      { label: 'Part', items: ['soprano', 'alto', 'tenor', 'bass', 'descant'], ref: 'the {x}', has: 'sings {x}', not: 'does not sing {x}' },
-      { label: 'Solo', items: ['Amazing Grace', 'It Is Well', 'Rock of Ages', 'Blessed Assurance', 'Abide with Me'], ref: 'the singer with the "{x}" solo', has: 'sings the "{x}" solo', not: 'does not sing the "{x}" solo' },
+      { label: 'Row', numeric: true, items: ['row 1', 'row 2', 'row 3', 'row 4', 'row 5', 'row 6'], ref: 'the musician in {x}', has: 'stood in {x}', not: 'did not stand in {x}', more: 'stood further back than', less: 'stood nearer the front than', next: 'stood exactly one row behind' },
+      { label: 'Instrument', items: ['harp', 'lyre', 'cymbals', 'trumpet', 'timbrel', 'flute'], ref: 'the one playing the {x}', has: 'played the {x}', not: 'did not play the {x}' },
+      { label: 'Psalm', items: ['Psalm 23', 'Psalm 46', 'Psalm 91', 'Psalm 100', 'Psalm 121', 'Psalm 150'], ref: 'the one who led {x}', has: 'led {x}', not: 'did not lead {x}' },
     ],
   },
   {
-    id: 'mission', title: 'Mission Trips', icon: '🌍',
-    intro: 'Five missionaries each served in a different country, in a different year, on a different project.',
-    who: { label: 'Missionary', items: ['Mary', 'John', 'Amara', 'Luis', 'Priya', 'Josiah', 'Zawadi', 'Elena', 'Kojo'] },
+    id: 'mission', title: 'Paul\'s Mission Team', icon: '⛵',
+    intro: 'Imagine Paul\'s companions each sent to a different city, travelling a different way and writing home a different number of letters.',
+    who: { label: 'Missionary', items: ['Paul', 'Barnabas', 'Silas', 'Timothy', 'Luke', 'Titus', 'Mark', 'Priscilla', 'Apollos'] },
     cats: [
-      { label: 'Year', numeric: true, items: ['2019', '2020', '2021', '2022', '2023'], ref: 'the missionary who went in {x}', has: 'went in {x}', not: 'did not go in {x}', more: 'went later than', less: 'went earlier than', next: 'went exactly one year after' },
-      { label: 'Country', items: ['Ghana', 'Kenya', 'Brazil', 'India', 'Uganda', 'Peru'], ref: 'the missionary who served in {x}', has: 'served in {x}', not: 'did not serve in {x}' },
-      { label: 'Project', items: ['a water well', 'a school', 'a clinic', 'a church roof', 'Bible translation'], ref: 'the missionary who worked on {x}', has: 'worked on {x}', not: 'did not work on {x}' },
+      { label: 'Letters', numeric: true, items: ['1 letter', '2 letters', '3 letters', '4 letters', '5 letters', '6 letters'], ref: 'the one who wrote {x}', has: 'wrote {x}', not: 'did not write {x}', more: 'wrote more letters than', less: 'wrote fewer letters than', next: 'wrote exactly one more letter than' },
+      { label: 'City', items: ['Ephesus', 'Corinth', 'Philippi', 'Antioch', 'Athens', 'Thessalonica'], ref: 'the one sent to {x}', has: 'went to {x}', not: 'did not go to {x}' },
+      { label: 'Travel', items: ['by ship', 'on foot', 'by donkey', 'by camel', 'by cart'], ref: 'the one who travelled {x}', has: 'travelled {x}', not: 'did not travel {x}' },
     ],
   },
   {
-    id: 'study', title: 'Bible Study Week', icon: '📖',
-    intro: 'Members of a small group each led one evening, studying a different book and bringing a different snack.',
-    who: { label: 'Leader', items: ['Lydia', 'Silas', 'Priscilla', 'Aquila', 'Phoebe', 'Titus', 'Dorcas', 'Apollos'] },
+    id: 'shepherds', title: 'Shepherds\' Night Watch', icon: '🐑',
+    intro: 'Imagine famous Bible shepherds keeping watch on different hills, each guarding a different-sized flock from a different danger.',
+    who: { label: 'Shepherd', items: ['Abel', 'Jacob', 'Rachel', 'Moses', 'David', 'Amos', 'Zipporah'] },
     cats: [
-      { label: 'Day', numeric: true, items: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], ref: 'the one who led on {x}', has: 'led on {x}', not: 'did not lead on {x}', more: 'led later in the week than', less: 'led earlier in the week than', next: 'led the day after' },
-      { label: 'Book', items: ['Genesis', 'Psalms', 'John', 'Romans', 'Acts', 'Ruth'], ref: 'the one who studied {x}', has: 'studied {x}', not: 'did not study {x}' },
-      { label: 'Snack', items: ['puff-puff', 'mandazi', 'plantain chips', 'biscuits', 'samosas', 'kelewele'], ref: 'the one who brought {x}', has: 'brought {x}', not: 'did not bring {x}' },
+      { label: 'Flock', numeric: true, items: ['10 sheep', '20 sheep', '30 sheep', '40 sheep', '50 sheep', '60 sheep'], ref: 'the shepherd with {x}', has: 'kept {x}', not: 'did not keep {x}', more: 'kept a bigger flock than', less: 'kept a smaller flock than', next: 'kept exactly ten more sheep than' },
+      { label: 'Hill', items: ['Mount Tabor', 'Mount Carmel', 'Mount Hermon', 'Mount Gilead', 'Mount Nebo'], ref: 'the shepherd on {x}', has: 'watched on {x}', not: 'did not watch on {x}' },
+      { label: 'Danger', items: ['a lion', 'a bear', 'a wolf', 'a jackal', 'a storm'], ref: 'the shepherd who faced {x}', has: 'faced {x}', not: 'did not face {x}' },
+    ],
+  },
+  {
+    id: 'well', title: 'At the Village Well', icon: '💧',
+    intro: 'Imagine women of the Bible meeting at the well, each drawing a different number of jars and bringing a different animal.',
+    who: { label: 'Woman', items: ['Rebekah', 'Rachel', 'Ruth', 'Naomi', 'Hannah', 'Abigail', 'Miriam', 'Esther', 'Lydia'] },
+    cats: [
+      { label: 'Jars', numeric: true, items: ['1 jar', '2 jars', '3 jars', '4 jars', '5 jars', '6 jars'], ref: 'the woman who drew {x}', has: 'drew {x}', not: 'did not draw {x}', more: 'drew more jars than', less: 'drew fewer jars than', next: 'drew exactly one more jar than' },
+      { label: 'Animal', items: ['a camel', 'a donkey', 'a goat', 'a lamb', 'an ox'], ref: 'the woman with {x}', has: 'brought {x}', not: 'did not bring {x}' },
+      { label: 'Village', items: ['Bethlehem', 'Nazareth', 'Bethany', 'Hebron', 'Shiloh', 'Jericho'], ref: 'the woman from {x}', has: 'came from {x}', not: 'did not come from {x}' },
+    ],
+  },
+  {
+    id: 'wall', title: 'Rebuilding the Wall', icon: '🧱',
+    intro: 'Imagine Nehemiah\'s crew each repairing a different gate of Jerusalem with a different tool, working different numbers of days.',
+    who: { label: 'Builder', items: ['Nehemiah', 'Ezra', 'Eliashib', 'Baruch', 'Meremoth', 'Shallum', 'Malchijah', 'Hanun'] },
+    cats: [
+      { label: 'Days', numeric: true, items: ['3 days', '4 days', '5 days', '6 days', '7 days', '8 days'], ref: 'the builder who worked {x}', has: 'worked {x}', not: 'did not work {x}', more: 'worked longer than', less: 'worked fewer days than', next: 'worked exactly one day longer than' },
+      { label: 'Gate', items: ['Sheep Gate', 'Fish Gate', 'Valley Gate', 'Fountain Gate', 'Water Gate', 'Horse Gate'], ref: 'the builder at the {x}', has: 'repaired the {x}', not: 'did not repair the {x}' },
+      { label: 'Tool', items: ['a hammer', 'a trowel', 'a chisel', 'a rope', 'a basket'], ref: 'the builder with {x}', has: 'used {x}', not: 'did not use {x}' },
+    ],
+  },
+  {
+    id: 'kings', title: 'The Kings\' Banquet', icon: '👑',
+    intro: 'Imagine kings of Israel and Judah at one great banquet, each seated at a different place and bringing a different treasure.',
+    who: { label: 'King', items: ['Saul', 'David', 'Solomon', 'Asa', 'Jehoshaphat', 'Hezekiah', 'Josiah', 'Uzziah'] },
+    cats: [
+      { label: 'Seat', numeric: true, items: ['seat 1', 'seat 2', 'seat 3', 'seat 4', 'seat 5', 'seat 6'], ref: 'the king in {x}', has: 'sat in {x}', not: 'did not sit in {x}', more: 'sat further down the table than', less: 'sat nearer the head of the table than', next: 'sat directly after' },
+      { label: 'Treasure', items: ['gold', 'cedar wood', 'spices', 'ivory', 'silver', 'precious stones'], ref: 'the king who brought {x}', has: 'brought {x}', not: 'did not bring {x}' },
+      { label: 'Robe', items: ['purple', 'scarlet', 'blue', 'white', 'gold-trimmed'], ref: 'the king in the {x} robe', has: 'wore the {x} robe', not: 'did not wear the {x} robe' },
+    ],
+  },
+  {
+    id: 'study', title: 'Early Church House Meetings', icon: '📖',
+    intro: 'Imagine leaders of the early church each hosting one evening, reading a different scroll and serving a different meal.',
+    who: { label: 'Host', items: ['Lydia', 'Silas', 'Priscilla', 'Aquila', 'Phoebe', 'Titus', 'Dorcas', 'Apollos', 'Cornelius'] },
+    cats: [
+      { label: 'Day', numeric: true, items: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'], ref: 'the one who hosted on {x}', has: 'hosted on {x}', not: 'did not host on {x}', more: 'hosted later in the week than', less: 'hosted earlier in the week than', next: 'hosted the day after' },
+      { label: 'Scroll', items: ['Genesis', 'Psalms', 'Isaiah', 'Ruth', 'Daniel', 'Proverbs'], ref: 'the one who read {x}', has: 'read from {x}', not: 'did not read from {x}' },
+      { label: 'Meal', items: ['bread and fish', 'lentil stew', 'figs and cheese', 'roast lamb', 'barley cakes'], ref: 'the one who served {x}', has: 'served {x}', not: 'did not serve {x}' },
     ],
   },
 ];

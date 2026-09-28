@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="FaithPlay.io — a Christian multiplayer party-game hub.">
+<title>FaithPlay.io — Christian Multiplayer Games</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<style>
+:root{--bg:#07111f;--panel:#0d1b2e;--panel2:#10233b;--line:rgba(255,255,255,.09);--muted:#8da0b8;--brand:#6d7cff;--gold:#f4b63f}
+*{box-sizing:border-box}body{margin:0;font-family:Poppins,sans-serif;background:
+radial-gradient(circle at 10% 0%,rgba(109,124,255,.18),transparent 30%),
+radial-gradient(circle at 90% 10%,rgba(244,182,63,.12),transparent 25%),var(--bg);color:#f7f9fc}
+button,input,select{font:inherit}.glass{background:rgba(13,27,46,.82);border:1px solid var(--line);box-shadow:0 18px 60px rgba(0,0,0,.22);backdrop-filter:blur(16px)}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.055),rgba(255,255,255,.025));border:1px solid var(--line)}
+.card:hover{border-color:rgba(109,124,255,.45);transform:translateY(-2px)}
+.hidden{display:none!important}.muted{color:var(--muted)}.scroll{scrollbar-width:thin;scrollbar-color:#33476a transparent}
+.tab.active{background:#6674ff;color:#fff}.mode.active{outline:2px solid rgba(109,124,255,.65);background:rgba(109,124,255,.13)}
+#drawCanvas{touch-action:none}.eliminated{opacity:.28;filter:grayscale(1)}.choice.selected{outline:2px solid #f4b63f}
+.toast{animation:toast .22s ease-out}@keyframes toast{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.pulse{animation:pulse 1.4s infinite}@keyframes pulse{50%{opacity:.5}}
+</style>
+</head>
+<body class="min-h-screen">
+<header class="sticky top-0 z-40 border-b border-white/10 bg-[#07111f]/90 backdrop-blur-xl">
+  <div class="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+    <button class="flex items-center gap-3" onclick="app.goHome()">
+      <span class="w-10 h-10 rounded-2xl bg-gradient-to-br from-indigo-500 to-blue-400 grid place-items-center text-xl">✝</span>
+      <span class="text-left"><b class="block text-lg tracking-tight">FaithPlay<span class="text-amber-400">.io</span></b><small class="text-[10px] muted">PLAY • KNOW • CONNECT</small></span>
+    </button>
+    <div class="flex items-center gap-2">
+      <span id="conn" class="hidden sm:flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs"><i id="connDot" class="w-2 h-2 rounded-full bg-slate-500"></i><span id="connText">Solo</span></span>
+      <button id="soundBtn" class="w-10 h-10 rounded-xl bg-white/5 border border-white/10" onclick="app.toggleSound()">🔊</button>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 py-6">
+<section id="home">
+  <div class="grid lg:grid-cols-[1.15fr_.85fr] gap-5">
+    <div class="glass rounded-[28px] p-6 md:p-8">
+      <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/10 text-indigo-300 border border-indigo-400/20 text-xs font-semibold">Christian party games • browser-first</div>
+      <h1 class="text-4xl md:text-6xl font-extrabold leading-tight mt-5">Faith games that stay <span class="text-amber-400">fresh.</span></h1>
+      <p class="muted mt-4 max-w-2xl">Draw, deduce, race, solve, identify songs, connect Bible events and challenge your friends. The content engine rotates categories, difficulty and question formats so the same room does not have to replay the same sequence.</p>
+      <div class="flex flex-wrap gap-3 mt-6">
+        <button onclick="app.quickPlay()" class="px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 font-bold">Quick Play</button>
+        <button onclick="app.createRoom()" class="px-5 py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 font-semibold">Create private room</button>
+        <button onclick="app.showHow()" class="px-5 py-3 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/10 font-semibold">How it works</button>
+      </div>
+      <div class="grid sm:grid-cols-3 gap-3 mt-8">
+        <div class="card rounded-2xl p-4"><b class="text-2xl">12+</b><small class="block muted mt-1">game formats</small></div>
+        <div class="card rounded-2xl p-4"><b class="text-2xl">∞</b><small class="block muted mt-1">procedural rounds</small></div>
+        <div class="card rounded-2xl p-4"><b class="text-2xl">2–20</b><small class="block muted mt-1">room target</small></div>
+      </div>
+    </div>
+    <div class="glass rounded-[28px] p-5">
+      <div class="flex items-center justify-between"><div><b>Room</b><div class="text-xs muted">Play solo or invite friends</div></div><span id="roomBadge" class="text-xs px-2.5 py-1 rounded-lg bg-white/5">SOLO</span></div>
+      <div class="mt-5 space-y-3">
+        <label class="block text-xs muted">Display name<input id="name" maxlength="18" class="mt-1 w-full rounded-xl bg-black/20 border border-white/10 px-3 py-3 outline-none focus:border-indigo-400" placeholder="Your name"></label>
+        <div class="grid grid-cols-2 gap-3">
+          <button onclick="app.createRoom()" class="rounded-xl bg-amber-500 text-slate-950 font-bold py-3">Create room</button>
+          <button onclick="app.joinPrompt()" class="rounded-xl bg-white/5 border border-white/10 font-bold py-3">Join code</button>
+        </div>
+        <div id="roomInfo" class="hidden rounded-2xl bg-indigo-500/10 border border-indigo-400/20 p-4">
+          <div class="text-xs muted">ROOM CODE</div><div id="roomCode" class="font-extrabold tracking-[.25em] text-2xl mt-1"></div>
+          <button onclick="app.copyRoom()" class="mt-3 w-full rounded-xl bg-indigo-600 py-2.5 font-bold text-sm">Copy invite link</button>
+        </div>
+      </div>
+      <div class="mt-5 border-t border-white/10 pt-5">
+        <div class="text-xs font-bold uppercase tracking-widest muted mb-3">Content shelves</div>
+        <div class="flex flex-wrap gap-2">
+          <button class="tab active px-3 py-2 rounded-xl text-xs" onclick="app.filter('all',this)">All</button>
+          <button class="tab px-3 py-2 rounded-xl text-xs" onclick="app.filter('bible',this)">Bible</button>
+          <button class="tab px-3 py-2 rounded-xl text-xs" onclick="app.filter('music',this)">Music</button>
+          <button class="tab px-3 py-2 rounded-xl text-xs" onclick="app.filter('party',this)">Party</button>
+          <button class="tab px-3 py-2 rounded-xl text-xs" onclick="app.filter('logic',this)">Logic</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="flex items-end justify-between mt-8 mb-4"><div><h2 class="text-2xl font-extrabold">Game library</h2><p class="muted text-sm">Every mode has multiple round generators.</p></div><span id="modeCount" class="text-xs muted"></span></div>
+  <div id="modes" class="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+
+  <div id="how" class="glass rounded-3xl p-6 mt-6 hidden">
+    <h3 class="text-xl font-bold">Built to avoid repetition</h3>
+    <div class="grid md:grid-cols-3 gap-4 mt-4 text-sm">
+      <div class="card rounded-2xl p-4"><b>Content pools</b><p class="muted mt-1">Questions are tagged by era, book, theme, difficulty, region and format. The round picker avoids immediate repeats.</p></div>
+      <div class="card rounded-2xl p-4"><b>Multiple win paths</b><p class="muted mt-1">Guess Who, drawing, multiple choice, free text, sequencing, deduction and category races feel different even when the topic is the same.</p></div>
+      <div class="card rounded-2xl p-4"><b>Community-ready music</b><p class="muted mt-1">Song rounds are designed around licensed/host-supplied audio and song metadata, allowing broad global and African gospel coverage without embedding unlicensed lyrics or recordings.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="game" class="hidden">
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
+    <div><div id="gameKicker" class="text-xs font-bold uppercase tracking-widest text-indigo-300">GAME</div><h2 id="gameTitle" class="text-2xl font-extrabold">Game</h2></div>
+    <div class="flex gap-2 items-center"><span id="roundInfo" class="text-xs muted"></span><span id="timer" class="px-3 py-2 rounded-xl bg-white/5 border border-white/10 font-bold">60</span><button onclick="app.exitGame()" class="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-sm">Lobby</button></div>
+  </div>
+  <div class="grid lg:grid-cols-[1fr_300px] gap-4">
+    <div class="glass rounded-3xl p-4 md:p-6 min-h-[620px]"><div id="surface"></div></div>
+    <aside class="space-y-4">
+      <div class="glass rounded-3xl p-4"><div class="flex justify-between"><b>Players</b><span id="playerCount" class="text-xs muted">1</span></div><div id="players" class="mt-3 space-y-2"></div></div>
+      <div class="glass rounded-3xl p-4"><div class="flex justify-between"><b>Chat / guesses</b><span class="text-[10px] muted">100 char max</span></div><div id="chat" class="h-56 overflow-y-auto scroll space-y-2 mt-3 text-xs"></div><form onsubmit="app.sendChat(event)" class="flex gap-2 mt-3"><input id="chatInput" maxlength="100" class="min-w-0 flex-1 rounded-xl bg-black/20 border border-white/10 px-3 py-2 outline-none" placeholder="Type a guess..."><button class="rounded-xl bg-indigo-600 px-3 font-bold">Send</button></form></div>
+      <div class="glass rounded-3xl p-4"><b>Score</b><div id="scoreboard" class="mt-3 space-y-2 text-sm"></div></div>
+    </aside>
+  </div>
+</section>
+</main>
+
+<div id="toastWrap" class="fixed top-20 right-4 z-50 space-y-2 w-[min(360px,calc(100vw-32px))]"></div>
+
+<script>
+'use strict';
+
+/* ---------------- Security primitives ---------------- */
+const SEC={
+  maxName:18,maxChat:100,maxRoom:12,
+  chatWindowMs:5000,chatMax:5,
+  allowedTypes:new Set(['JOIN','CHAT','DRAW','FLIP','ANSWER','STATE','PING']),
+  esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))},
+  cleanName(v){return String(v??'').replace(/[^\p{L}\p{N} _.-]/gu,'').trim().slice(0,this.maxName)||'Player'},
+  cleanChat(v){return String(v??'').replace(/[\u0000-\u001F\u007F]/g,'').trim().slice(0,this.maxChat)},
+  validPacket(p){return p&&typeof p==='object'&&SEC.allowedTypes.has(p.type)&&JSON.stringify(p).length<12000},
+  rate(){const now=Date.now();app.rateLog=app.rateLog.filter(t=>now-t<SEC.chatWindowMs);if(app.rateLog.length>=SEC.chatMax)return false;app.rateLog.push(now);return true}
+};
+
+/* Content is intentionally metadata-first. Copyrighted recordings/lyrics should be supplied through licensed sources. */
+const SONGS=[
+ {title:'Way Maker',artist:'Sinach',region:'West Africa',tags:['praise','worship','Nigeria']},
+ {title:'Excess Love',artist:'Mercy Chinwo',region:'West Africa',tags:['worship','Nigeria']},
+ {title:'My Everything',artist:'Joe Mettle',region:'West Africa',tags:['praise','Ghana']},
+ {title:'Mo Ne Yo',artist:'Joe Mettle',region:'West Africa',tags:['Ghana','praise']},
+ {title:'Baba Oh',artist:'Maverick City Music / African gospel community',region:'Global/Africa',tags:['praise']},
+ {title:'Jireh',artist:'Maverick City Music',region:'Global',tags:['worship']},
+ {title:'Oceans',artist:'Hillsong UNITED',region:'Global',tags:['worship']},
+ {title:'Goodness of God',artist:'Bethel Music',region:'Global',tags:['worship']},
+ {title:'I Speak Jesus',artist:'Charity Gayle',region:'Global',tags:['worship']},
+ {title:'Nara',artist:'Tim Godfrey ft. Travis Greene',region:'Nigeria/US',tags:['praise']},
+ {title:'Eze',artist:'Moses Bliss',region:'West Africa',tags:['praise','Nigeria']},
+ {title:'You Are Great',artist:'Steve Crown',region:'West Africa',tags:['praise','Nigeria']},
+ {title:'Miracle No Dey Tire Jesus',artist:'Moses Bliss',region:'West Africa',tags:['praise','Nigeria']},
+ {title:'Onwanwani',artist:'MOGmusic',region:'Ghana',tags:['Ghana','praise']},
+ {title:'Hallelujah',artist:'Dunsin Oyekan',region:'West Africa',tags:['worship','Nigeria']},
+ {title:'Elohim Adonai',artist:'Nathaniel Bassey',region:'West Africa',tags:['worship','Nigeria']},
+ {title:'Ancient of Days',artist:'J.J. Hairston / Gospel tradition',region:'Global/Africa',tags:['gospel']},
+ {title:'Total Praise',artist:'Richard Smallwood',region:'US',tags:['choir','gospel']},
+ {title:'Take Me to the King',artist:'Tamela Mann',region:'US',tags:['gospel']},
+ {title:'I Can Only Imagine',artist:'MercyMe',region:'US',tags:['christian']},
+ {title:'Amazing Grace',artist:'Traditional hymn',region:'Global',tags:['hymn','public-domain text']},
+ {title:'How Great Thou Art',artist:'Traditional hymn',region:'Global',tags:['hymn','public-domain text']}
+];
+
+const PEOPLE=[
+ {n:'Adam',g:'OT',role:'First human',era:'Creation',traits:['man','Genesis','garden','patriarch']},
+ {n:'Eve',g:'OT',role:'First woman',era:'Creation',traits:['woman','Genesis','garden','patriarch']},
+ {n:'Noah',g:'OT',role:'Ark builder',era:'Patriarchs',traits:['man','Genesis','flood','patriarch']},
+ {n:'Abraham',g:'OT',role:'Patriarch',era:'Patriarchs',traits:['man','Genesis','patriarch','covenant']},
+ {n:'Sarah',g:'OT',role:'Matriarch',era:'Patriarchs',traits:['woman','Genesis','patriarch']},
+ {n:'Joseph',g:'OT',role:'Dreamer / ruler in Egypt',era:'Patriarchs',traits:['man','Genesis','Egypt','dream']},
+ {n:'Moses',g:'OT',role:'Leader of Israel',era:'Exodus',traits:['man','Exodus','leader','law']},
+ {n:'Miriam',g:'OT',role:'Prophet and sister of Moses',era:'Exodus',traits:['woman','Exodus','prophet']},
+ {n:'Joshua',g:'OT',role:'Leader after Moses',era:'Conquest',traits:['man','leader','Joshua']},
+ {n:'Deborah',g:'OT',role:'Judge and prophet',era:'Judges',traits:['woman','judge','prophet']},
+ {n:'Ruth',g:'OT',role:'Moabite widow',era:'Judges',traits:['woman','Moab','David']},
+ {n:'Samuel',g:'OT',role:'Prophet and judge',era:'United Kingdom',traits:['man','prophet','judge']},
+ {n:'David',g:'OT',role:'King and psalmist',era:'United Kingdom',traits:['man','king','Bethlehem','psalmist']},
+ {n:'Solomon',g:'OT',role:'King and temple builder',era:'United Kingdom',traits:['man','king','wisdom','temple']},
+ {n:'Elijah',g:'OT',role:'Prophet',era:'Divided Kingdom',traits:['man','prophet','miracle']},
+ {n:'Esther',g:'OT',role:'Queen',era:'Exile',traits:['woman','queen','Persia']},
+ {n:'Daniel',g:'OT',role:'Prophet in exile',era:'Exile',traits:['man','prophet','Babylon','dream']},
+ {n:'Jonah',g:'OT',role:'Prophet sent to Nineveh',era:'Prophets',traits:['man','prophet','Nineveh','fish']},
+ {n:'Mary',g:'NT',role:'Mother of Jesus',era:'Gospels',traits:['woman','New Testament','Jesus','mother']},
+ {n:'Joseph',g:'NT',role:'Husband of Mary',era:'Gospels',traits:['man','New Testament','Jesus','dream']},
+ {n:'John the Baptist',g:'NT',role:'Forerunner of Jesus',era:'Gospels',traits:['man','New Testament','prophet','baptism']},
+ {n:'Peter',g:'NT',role:'Apostle',era:'Gospels/Acts',traits:['man','New Testament','apostle','fisherman']},
+ {n:'Paul',g:'NT',role:'Apostle to the Gentiles',era:'Acts/Epistles',traits:['man','New Testament','apostle','missionary']},
+ {n:'Lydia',g:'NT',role:'Seller of purple cloth',era:'Acts',traits:['woman','New Testament','Acts','business']},
+ {n:'Priscilla',g:'NT',role:'Teacher and coworker',era:'Acts/Epistles',traits:['woman','New Testament','teacher','coworker']},
+ {n:'Barnabas',g:'NT',role:'Encourager and missionary',era:'Acts',traits:['man','New Testament','missionary','Cyprus']},
+ {n:'Stephen',g:'NT',role:'Early church witness',era:'Acts',traits:['man','New Testament','Acts','martyr']},
+ {n:'Timothy',g:'NT',role:'Young church leader',era:'Epistles',traits:['man','New Testament','leader','Paul']},
+ {n:'Martha',g:'NT',role:'Sister of Mary and Lazarus',era:'Gospels',traits:['woman','New Testament','Bethany','Jesus']},
+ {n:'Lazarus',g:'NT',role:'Friend of Jesus',era:'Gospels',traits:['man','New Testament','Bethany','miracle']}
+];
+
+const DRAW_WORDS=[
+ 'ark','rainbow','manna','burning bush','stone tablets','Jericho wall','slingshot','lion den','fiery furnace','giant','shepherd','olive branch','mustard seed','loaves and fish','wedding feast','empty tomb','fishing net','cross','crown','scroll','temple','well','boat','vineyard','talent','lamp','sheep','lost coin','prodigal son','good samaritan','Pentecost','Paul shipwreck','Bethlehem star','water into wine','upper room'
+];
+
+const CLUES=[
+ {a:'Noah',c:['I built something because of a warning about water.','Animals entered in pairs in the familiar account.','A rainbow becomes part of the covenant sign.']},
+ {a:'Moses',c:['I was placed in a basket as a baby.','I encountered God at a burning bush.','I led Israel out of Egypt.']},
+ {a:'Ruth',c:['I was not born an Israelite.','I stayed with Naomi.','I gleaned in a field and later became part of David’s family line.']},
+ {a:'Esther',c:['I lived in the Persian period.','I became queen.','I risked approaching the king to help my people.']},
+ {a:'Daniel',c:['I lived in exile.','I interpreted dreams and visions.','I survived a night in a den of lions.']},
+ {a:'Peter',c:['I worked as a fisherman.','I walked on water in one Gospel account.','I became a prominent apostle in Acts.']},
+ {a:'Paul',c:['I first opposed the early Jesus movement.','A dramatic encounter changed my direction.','I travelled widely teaching and planting churches.']},
+ {a:'Lydia',c:['I am described as a seller of purple cloth.','I encountered Paul near Philippi.','My household was baptized.']}
+];
+
+const VERSE_FACTS=[
+ ['Genesis 1','Creation account','Begins with God creating the heavens and the earth.'],
+ ['Exodus 3','Burning bush','Moses encounters God in a bush that burns without being consumed.'],
+ ['Joshua 6','Jericho','The fall of Jericho follows Israel’s unusual marching instructions.'],
+ ['1 Samuel 17','David and Goliath','A young David faces the Philistine warrior Goliath.'],
+ ['Psalm 23','The shepherd psalm','The speaker uses shepherd imagery for God’s care.'],
+ ['Daniel 6','Lions’ den','Daniel is thrown into a den of lions.'],
+ ['Matthew 5–7','Sermon on the Mount','A major teaching section attributed to Jesus.'],
+ ['Mark 4','Parables and storm','Includes parables and the calming of a storm.'],
+ ['Luke 15','Lost things','Includes stories of a lost sheep, coin and son.'],
+ ['John 2','Cana','The wedding at Cana is associated with Jesus’ first sign in John.'],
+ ['Acts 2','Pentecost','The Spirit comes upon the disciples and Peter addresses the crowd.'],
+ ['Acts 16','Philippi','Includes Lydia’s conversion and Paul and Silas in prison.']
+];
+
+const LOGIC_ROUNDS=[
+ {title:'Who met whom?',cats:['Person','Event','Place'],items:['Paul','Moses','Ruth','Peter'],clues:['Paul is paired with a city that is in Acts.','Ruth is paired with a book named after her.','Moses is paired with an event involving a bush.','Peter is paired with an event involving a net.'],answer:{Paul:'Philippi',Ruth:'Bethlehem',Moses:'Burning bush',Peter:'Fishing'}},
+ {title:'Three journeys',cats:['Person','Destination','Book'],items:['Paul','Jonah','Abraham'],clues:['The prophet was sent to Nineveh.','The patriarch journeys toward Canaan.','The apostle visits Philippi.'],answer:{Paul:'Philippi',Jonah:'Nineveh',Abraham:'Canaan'}},
+ {title:'Match the witness',cats:['Person','Role','Setting'],items:['Deborah','Esther','Lydia'],clues:['One is a judge and prophet.','One is queen in Persia.','One sells purple cloth.'],answer:{Deborah:'Judge/prophet',Esther:'Queen/Persia',Lydia:'Purple cloth/Philippi'}}
+];
+
+const MODES=[
+ {id:'draw',cat:'party',icon:'✏️',title:'Bible Draw & Guess',desc:'Skribbl-style drawing with biblical people, places, objects and scenes.',players:'2–20',time:60},
+ {id:'guesswho',cat:'party',icon:'🕵️',title:'Bible Guess Who',desc:'Ask yes/no questions, eliminate candidates and risk a final guess.',players:'2',time:120},
+ {id:'clues',cat:'bible',icon:'💡',title:'Who Am I?',desc:'Reveal increasingly specific Bible clues. Earlier guesses score more.',players:'1–20',time:60},
+ {id:'song',cat:'music',icon:'🎵',title:'Song Detective',desc:'Identify Christian songs from artist, region, era and licensed audio clues.',players:'2–20',time:60},
+ {id:'lyrics',cat:'music',icon:'🎤',title:'Finish the Hymn',desc:'Complete public-domain hymn lines or use licensed lyric packs for modern songs.',players:'1–20',time:60},
+ {id:'logic',cat:'logic',icon:'🧩',title:'Bible Logic Grid',desc:'Sporcle-inspired deduction: connect people, events, places and clues.',players:'1–8',time:120},
+ {id:'timeline',cat:'bible',icon:'🗓️',title:'Bible Timeline',desc:'Put events into the correct relative order.',players:'1–20',time:60},
+ {id:'scramble',cat:'party',icon:'⚡',title:'Scripture Scramble',desc:'Unscramble names, places and Bible vocabulary under pressure.',players:'1–20',time:45},
+ {id:'oddone',cat:'logic',icon:'🔎',title:'Odd One Out',desc:'Find the item that does not belong to the biblical category.',players:'1–20',time:45},
+ {id:'category',cat:'party',icon:'🏃',title:'Category Rush',desc:'Name valid Bible answers before the clock runs out.',players:'1–20',time:45},
+ {id:'emoji',cat:'party',icon:'🧠',title:'Emoji Parables',desc:'Decode a Bible story, person or event from visual clues.',players:'1–20',time:45},
+ {id:'reference',cat:'bible',icon:'📖',title:'Reference Race',desc:'Match a book/chapter reference to the event or theme.',players:'1–20',time:45}
+];
+
+class App{
+ constructor(){
+  this.name=SEC.cleanName(localStorage.getItem('fp_name')||'Disciple');
+  this.mode=null;this.round=0;this.score=0;this.timer=null;this.time=0;this.sound=true;
+  this.history={};this.rateLog=[];this.room=null;this.peer=null;this.host=false;this.conn=null;this.players=[];
+  this.draw={down:false,last:null,color:'#172033',size:5};
+  this.guess={cards:[],secret:null,eliminated:new Set()};
+  this.seed=Math.floor(Math.random()*1e9);
+ }
+ init(){
+  document.getElementById('name').value=this.name;
+  document.getElementById('name').addEventListener('input',e=>{this.name=SEC.cleanName(e.target.value);localStorage.setItem('fp_name',this.name)});
+  this.renderModes('all');this.renderPlayers();this.renderScore();
+  this.checkHash();
+ }
+ rand(arr,avoid=[]){
+  if(!arr?.length)return null;
+  const key=JSON.stringify(arr.map(x=>x.id||x.n||x.title||x.a||x));
+  let used=this.history[key]||[];
+  const avail=arr.filter((_,i)=>!used.includes(i));
+  if(!avail.length){used=[];this.history[key]=[];return this.rand(arr,avoid)}
+  const i=Math.floor(Math.random()*avail.length), item=avail[i], original=arr.indexOf(item);
+  used.push(original);this.history[key]=used.slice(-Math.max(4,Math.floor(arr.length*.65)));
+  return item;
+ }
+ toast(msg,type='info'){
+  const d=document.createElement('div');d.className='toast glass rounded-2xl px-4 py-3 text-sm border '+(type==='bad'?'border-rose-400/30':type==='good'?'border-emerald-400/30':'border-indigo-400/30');d.innerHTML=SEC.esc(msg);
+  document.getElementById('toastWrap').appendChild(d);setTimeout(()=>d.remove(),3200);
+ }
+ filter(cat,btn){document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));btn.classList.add('active');this.renderModes(cat)}
+ renderModes(cat){
+  const list=cat==='all'?MODES:MODES.filter(m=>m.cat===cat);document.getElementById('modeCount').textContent=list.length+' modes';
+  document.getElementById('modes').innerHTML=list.map(m=>`<button class="mode card rounded-3xl p-5 text-left transition" onclick="app.start('${m.id}')"><div class="flex justify-between gap-3"><span class="w-12 h-12 rounded-2xl bg-indigo-500/10 grid place-items-center text-2xl">${m.icon}</span><span class="text-[10px] muted">${m.players}</span></div><h3 class="font-bold mt-4">${SEC.esc(m.title)}</h3><p class="text-xs muted mt-1 leading-5">${SEC.esc(m.desc)}</p><div class="text-[10px] text-indigo-300 mt-4">${m.time}s round • procedural rotation</div></button>`).join('');
+ }
+ showHow(){document.getElementById('how').classList.toggle('hidden')}
+ goHome(){this.exitGame();window.scrollTo({top:0,behavior:'smooth'})}
+ quickPlay(){this.start(this.rand(MODES).id)}
+ start(id){
+  const m=MODES.find(x=>x.id===id);if(!m)return;this.mode=m;this.round++;this.score=0;
+  document.getElementById('home').classList.add('hidden');document.getElementById('game').classList.remove('hidden');
+  document.getElementById('gameTitle').textContent=m.title;document.getElementById('gameKicker').textContent=m.cat.toUpperCase();
+  document.getElementById('roundInfo').textContent='Round '+this.round+' • '+m.players;
+  this.renderPlayers();this.renderScore();this.playRound();
+ }
+ playRound(){
+  clearInterval(this.timer);this.time=this.mode.time;this.tick();this.timer=setInterval(()=>{this.time--;this.tick();if(this.time<=0){clearInterval(this.timer);this.toast('Round ended');this.revealIfNeeded()}},1000);
+  const s=document.getElementById('surface');s.innerHTML='';this[this.mode.id+'Round'](s);
+ }
+ tick(){document.getElementById('timer').textContent=this.time+'s'}
+ next(){this.round++;this.playRound();document.getElementById('roundInfo').textContent='Round '+this.round+' • '+this.mode.players}
+ exitGame(){clearInterval(this.timer);document.getElementById('game').classList.add('hidden');document.getElementById('home').classList.remove('hidden')}
+ addPoints(n){this.score+=Math.max(0,n);this.renderScore();this.beep('good')}
+ renderScore(){document.getElementById('scoreboard').innerHTML=`<div class="flex justify-between"><span>${SEC.esc(this.name)}</span><b>${this.score}</b></div>`}
+ renderPlayers(){
+  const all=[{name:this.name,score:this.score,host:this.host},...this.players.filter(p=>p.name!==this.name)];
+  document.getElementById('playerCount').textContent=all.length;
+  document.getElementById('players').innerHTML=all.map((p,i)=>`<div class="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2"><span class="text-xs">${i===0?'✦ ':''}${SEC.esc(p.name)}</span><b class="text-xs">${p.score||0}</b></div>`).join('');
+ }
+ /* ---------- Draw ---------- */
+ drawRound(s){
+  const word=this.rand(DRAW_WORDS);this.draw.word=word;
+  s.innerHTML=`<div class="w-full"><div class="flex flex-wrap justify-between items-center gap-2 mb-3"><div><b>Draw without writing letters</b><p class="text-xs muted">Your word: <span class="text-amber-300 font-bold">${SEC.esc(word)}</span></p></div><button onclick="app.clearCanvas()" class="px-3 py-2 rounded-xl bg-white/5 border border-white/10 text-xs">Clear</button></div><div class="rounded-3xl bg-white overflow-hidden border-4 border-slate-700"><canvas id="drawCanvas" class="w-full h-[420px]"></canvas></div><div class="flex gap-2 mt-3"><input id="brush" type="color" value="#172033" class="h-10 w-12"><select id="size" class="rounded-xl bg-white/5 border border-white/10 px-3 text-sm"><option value="3">Thin</option><option value="7" selected>Medium</option><option value="14">Thick</option></select></div><p class="text-xs muted mt-3">In multiplayer, the production version should keep the word secret from guessers and send only drawing strokes.</p></div>`;
+  const c=document.getElementById('drawCanvas'),ctx=c.getContext('2d');const resize=()=>{const r=c.getBoundingClientRect();const img=c.toDataURL();c.width=r.width*devicePixelRatio;c.height=r.height*devicePixelRatio;c.style.width=r.width+'px';c.style.height=r.height+'px';ctx.scale(devicePixelRatio,devicePixelRatio);};setTimeout(resize,10);
+  const pos=e=>{const r=c.getBoundingClientRect();const t=e.touches?.[0]||e;return{x:t.clientX-r.left,y:t.clientY-r.top}};
+  const down=e=>{this.draw.down=true;this.draw.last=pos(e)};const move=e=>{if(!this.draw.down)return;const p=pos(e);ctx.strokeStyle=document.getElementById('brush').value;ctx.lineWidth=+document.getElementById('size').value;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(this.draw.last.x,this.draw.last.y);ctx.lineTo(p.x,p.y);ctx.stroke();this.draw.last=p};const up=()=>this.draw.down=false;
+  c.addEventListener('mousedown',down);c.addEventListener('mousemove',move);window.addEventListener('mouseup',up,{once:false});c.addEventListener('touchstart',down,{passive:true});c.addEventListener('touchmove',move,{passive:true});c.addEventListener('touchend',up);
+ }
+ clearCanvas(){const c=document.getElementById('drawCanvas');if(c)c.getContext('2d').clearRect(0,0,c.width,c.height)}
+ /* ---------- Guess Who ---------- */
+ guesswhoRound(s){
+  const pool=[...PEOPLE].sort(()=>Math.random()-.5).slice(0,20);this.guess.cards=pool;this.guess.secret=this.rand(pool);this.guess.eliminated=new Set();
+  const attrs=['OT/NT','man/woman','king/queen','prophet','apostle','Genesis','Exodus','Acts','leader','Jesus connection'];
+  s.innerHTML=`<div><div class="rounded-2xl bg-indigo-500/10 border border-indigo-400/20 p-4 mb-4"><b>Secret character chosen.</b><p class="text-xs muted mt-1">Ask yes/no questions in chat, then click candidates to eliminate them. In a live room, the opponent/host supplies the yes/no answer.</p><div class="flex flex-wrap gap-2 mt-3">${attrs.map(a=>`<span class="px-2 py-1 rounded-lg bg-white/5 text-[10px]">${a}</span>`).join('')}</div></div><div id="gwGrid" class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-3"></div><div class="flex flex-wrap gap-2 mt-4"><button onclick="app.guessHint()" class="px-4 py-2 rounded-xl bg-amber-500 text-slate-950 font-bold text-sm">Reveal a clue</button><button onclick="app.makeGuess()" class="px-4 py-2 rounded-xl bg-indigo-600 font-bold text-sm">Make final guess</button></div></div>`;
+  this.renderGW();
+ }
+ renderGW(){
+  const g=document.getElementById('gwGrid');if(!g)return;
+  g.innerHTML=this.guess.cards.map((p,i)=>{const off=this.guess.eliminated.has(i);return `<button class="card rounded-2xl p-3 text-left ${off?'eliminated':''}" onclick="app.toggleGW(${i})"><div class="text-2xl">${p.g==='OT'?'📜':'✝️'}</div><b class="text-sm">${SEC.esc(p.n)}</b><div class="text-[10px] muted">${SEC.esc(p.role)}</div><div class="text-[10px] text-indigo-300 mt-1">${SEC.esc(p.era)}</div></button>`}).join('');
+ }
+ toggleGW(i){this.guess.eliminated.has(i)?this.guess.eliminated.delete(i):this.guess.eliminated.add(i);this.renderGW()}
+ guessHint(){const p=this.guess.secret;const candidates=['Old Testament or New Testament?','Is the person male?','Is the person a leader?','Is the person connected with a major journey?','Is the person associated with a named book?'];const remaining=candidates.filter(x=>!this.guess.hints?.includes(x));this.guess.hints=this.guess.hints||[];if(!remaining.length){this.toast('No more hints');return}const q=remaining[Math.floor(Math.random()*remaining.length)];let yes='Yes';if(q.includes('Old'))yes=p.g==='OT'?'Yes':'No';if(q.includes('male'))yes=p.traits.includes('man')?'Yes':'No';if(q.includes('leader'))yes=p.traits.includes('leader')?'Yes':'No';if(q.includes('journey'))yes=['Paul','Abraham','Moses','Jonah'].includes(p.n)?'Yes':'No';if(q.includes('book'))yes=['Ruth','Esther','Daniel','Jonah','Paul'].includes(p.n)?'Yes':'No';this.guess.hints.push(q);this.toast(q+' '+yes,'info')}
+ makeGuess(){const live=this.guess.cards.map((p,i)=>({p,i})).filter(x=>!this.guess.eliminated.has(x.i));const name=prompt('Type the character name:');if(!name)return;const ok=live.some(x=>x.p.n.toLowerCase()===name.trim().toLowerCase()&&x.p.n===this.guess.secret.n);if(ok){this.addPoints(100);this.toast('Correct: '+this.guess.secret.n,'good')}else{this.addPoints(-25);this.toast('Not correct. The mystery character was '+this.guess.secret.n,'bad')}}
+ /* ---------- Clues ---------- */
+ cluesRound(s){
+  const x=this.rand(CLUES);this.currentAnswer=x.a;s.innerHTML=`<div class="max-w-2xl mx-auto text-center"><div class="w-20 h-20 rounded-3xl bg-purple-500/10 border border-purple-400/20 grid place-items-center text-3xl mx-auto">💡</div><h3 class="text-xl font-bold mt-4">Who am I?</h3><div id="clueBox" class="mt-5 space-y-3"></div><div class="flex gap-2 mt-5"><input id="clueGuess" maxlength="40" class="flex-1 rounded-xl bg-black/20 border border-white/10 px-3 py-3 outline-none" placeholder="Your answer"><button onclick="app.answerText('clueGuess',app.currentAnswer)" class="rounded-xl bg-indigo-600 px-4 font-bold">Guess</button></div></div>`;this.clueIndex=0;this.showClue(x)}
+ showClue(x){const b=document.getElementById('clueBox');if(!b)return;b.innerHTML=x.c.slice(0,this.clueIndex+1).map((c,i)=>`<div class="card rounded-2xl p-4 text-left"><span class="text-[10px] text-indigo-300">CLUE ${i+1}</span><div class="mt-1">${SEC.esc(c)}</div></div>`).join('')+`<button class="text-xs text-amber-300 mt-2" onclick="app.moreClue()">Reveal next clue (${Math.max(0,3-this.clueIndex-1)} left)</button>`}
+ moreClue(){const x=CLUES.find(q=>q.a===this.currentAnswer);if(this.clueIndex<x.c.length-1){this.clueIndex++;this.showClue(x)}}
+ /* ---------- Music ---------- */
+ songRound(s){
+  const song=this.rand(SONGS);this.currentSong=song;const decoys=[...SONGS].filter(x=>x!==song).sort(()=>Math.random()-.5).slice(0,3);const choices=[song,...decoys].sort(()=>Math.random()-.5);
+  s.innerHTML=`<div class="max-w-2xl mx-auto"><div class="rounded-3xl bg-gradient-to-br from-indigo-500/15 to-amber-500/10 border border-white/10 p-7 text-center"><div class="text-5xl">🎧</div><div class="text-xs uppercase tracking-widest text-indigo-300 mt-4">Song Detective</div><h3 class="text-2xl font-extrabold mt-2">Which song is this?</h3><p class="muted text-sm mt-2">Demo mode uses metadata clues. A production build should attach licensed/host-supplied audio here.</p><div class="grid sm:grid-cols-3 gap-2 mt-5"><div class="card rounded-xl p-3"><small class="muted block">Region</small><b>${SEC.esc(song.region)}</b></div><div class="card rounded-xl p-3"><small class="muted block">Style</small><b>${SEC.esc(song.tags[0])}</b></div><div class="card rounded-xl p-3"><small class="muted block">Artist</small><b>${SEC.esc(song.artist)}</b></div></div></div><div class="grid sm:grid-cols-2 gap-3 mt-4">${choices.map(c=>`<button class="choice card rounded-2xl p-4 text-left" onclick="app.songPick(this,'${SEC.esc(c.title).replace(/'/g,"\\'")}')"><b>${SEC.esc(c.title)}</b><small class="block muted mt-1">${SEC.esc(c.artist)}</small></button>`).join('')}</div></div>`;
+ }
+ songPick(btn,title){document.querySelectorAll('.choice').forEach(x=>x.classList.remove('selected'));btn.classList.add('selected');if(title===this.currentSong.title){this.addPoints(100);this.toast('Correct — '+title,'good')}else{this.addPoints(0);this.toast('Answer: '+this.currentSong.title,'bad')}}
+ lyricsRound(s){
+  const hymns=[
+   {title:'Amazing Grace',line:'Amazing grace! how sweet the sound, That saved a wretch like me!',answer:'saved'},
+   {title:'How Great Thou Art',line:'Then sings my soul, my Savior God, to Thee: How great Thou art!',answer:'great'},
+   {title:'Holy, Holy, Holy',line:'Holy, holy, holy! Lord God Almighty!',answer:'holy'},
+   {title:'It Is Well with My Soul',line:'It is well with my soul.',answer:'well'}
+  ];
+  const h=this.rand(hymns), options=[h.answer,...['saved','great','holy','well'].filter(x=>x!==h.answer).sort(()=>Math.random()-.5).slice(0,3)].sort(()=>Math.random()-.5);
+  s.innerHTML=`<div class="max-w-2xl mx-auto text-center"><div class="text-5xl">🎤</div><div class="text-xs uppercase tracking-widest text-rose-300 mt-3">Public-domain hymn demo</div><h3 class="text-2xl font-bold mt-2">${SEC.esc(h.title)}</h3><div class="card rounded-3xl p-7 mt-5 text-lg leading-8 italic">“${SEC.esc(h.line)}”</div><p class="text-xs muted mt-3">Modern-song lyric packs should only be enabled with appropriate rights.</p><div class="grid grid-cols-2 gap-3 mt-5">${options.map(o=>`<button class="card rounded-xl py-3 font-bold" onclick="app.lyricPick(this,'${o}')">${o}</button>`).join('')}</div></div>`;
+  this.lyricAnswer=h.answer;
+ }
+ lyricPick(btn,a){if(a===this.lyricAnswer){this.addPoints(100);this.toast('Correct','good')}else this.toast('Try another option','bad')}
+ /* ---------- Logic ---------- */
+ logicRound(s){
+  const r=this.rand(LOGIC_ROUNDS);this.logic=r;
+  s.innerHTML=`<div><div class="mb-4"><span class="text-xs text-emerald-300 uppercase tracking-widest">Logic grid</span><h3 class="text-2xl font-bold">${SEC.esc(r.title)}</h3><p class="muted text-sm">Use the clues to match each person to the correct detail. This demo uses click-to-place answers.</p></div><div class="card rounded-2xl p-4 space-y-2 text-sm">${r.clues.map((c,i)=>`<div><b>${i+1}.</b> ${SEC.esc(c)}</div>`).join('')}</div><div class="overflow-x-auto mt-4"><table class="w-full text-sm"><thead><tr><th class="text-left p-3">Person</th><th class="p-3">Choose match</th></tr></thead><tbody>${r.items.map((p,i)=>`<tr class="border-t border-white/10"><td class="p-3 font-semibold">${p}</td><td class="p-3"><select class="logicSel w-full rounded-xl bg-[#0a1727] border border-white/10 px-3 py-2" data-p="${p}"><option value="">Select…</option>${Object.values(r.answer).map(v=>`<option>${SEC.esc(v)}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table></div><button onclick="app.checkLogic()" class="mt-4 px-5 py-3 rounded-xl bg-emerald-600 font-bold">Check solution</button></div>`;
+ }
+ checkLogic(){let ok=0;document.querySelectorAll('.logicSel').forEach(x=>{if(x.value===this.logic.answer[x.dataset.p])ok++});if(ok===this.logic.items.length){this.addPoints(200);this.toast('Logic grid solved','good')}else this.toast(`${ok}/${this.logic.items.length} matches correct — keep reasoning`,'bad')}
+ /* ---------- Timeline ---------- */
+ timelineRound(s){
+  const sets=[
+   ['Creation','Flood','Abraham','Exodus','David becomes king'],
+   ['Birth of Jesus','Baptism of Jesus','Crucifixion','Resurrection','Pentecost'],
+   ['Exodus','Judges','David','Exile','Return from exile']
+  ];const correct=this.rand(sets);const shuffled=[...correct].sort(()=>Math.random()-.5);this.timelineAnswer=correct;
+  s.innerHTML=`<div class="max-w-2xl mx-auto text-center"><div class="text-4xl">🗓️</div><h3 class="text-2xl font-bold mt-3">Put these in order</h3><p class="muted text-sm">Drag with the buttons or use the move controls.</p><div id="timelineList" class="space-y-2 mt-5">${shuffled.map((x,i)=>`<div class="card rounded-xl p-3 flex items-center justify-between" data-v="${SEC.esc(x)}"><b>${SEC.esc(x)}</b><span class="flex gap-1"><button onclick="app.moveTime(this,-1)" class="px-2">↑</button><button onclick="app.moveTime(this,1)" class="px-2">↓</button></span></div>`).join('')}</div><button onclick="app.checkTimeline()" class="mt-4 px-5 py-3 rounded-xl bg-indigo-600 font-bold">Check order</button></div>`;
+ }
+ moveTime(btn,d){const row=btn.closest('[data-v]'),list=row.parentElement,rows=[...list.children],i=rows.indexOf(row),j=i+d;if(j<0||j>=rows.length)return;d>0?list.insertBefore(rows[j],row):list.insertBefore(row,rows[j])}
+ checkTimeline(){const got=[...document.querySelectorAll('#timelineList>[data-v]')].map(x=>x.dataset.v);if(JSON.stringify(got)===JSON.stringify(this.timelineAnswer)){this.addPoints(150);this.toast('Perfect order','good')}else this.toast('Not quite — reorder and try again','bad')}
+ /* ---------- Scramble ---------- */
+ scrambleRound(s){
+  const word=this.rand([...PEOPLE.map(x=>x.n),...['Jerusalem','Bethlehem','Nazareth','Philippi','Pentecost','Galilee','Capernaum','Gethsemane','Hallelujah','Tabernacle']]);this.scrambleAnswer=word;let chars=word.replace(/\s/g,'').split('');for(let i=chars.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[chars[i],chars[j]]=[chars[j],chars[i]]}
+  s.innerHTML=`<div class="max-w-xl mx-auto text-center"><div class="text-xs uppercase tracking-widest text-cyan-300">Scripture Scramble</div><div class="text-4xl font-extrabold tracking-[.18em] my-8 break-all">${SEC.esc(chars.join(''))}</div><p class="muted text-sm">Unscramble the Bible name or place.</p><div class="flex gap-2 mt-5"><input id="scr" maxlength="40" class="flex-1 rounded-xl bg-black/20 border border-white/10 px-4 py-3 outline-none" placeholder="Answer"><button onclick="app.answerText('scr',app.scrambleAnswer)" class="bg-cyan-600 rounded-xl px-4 font-bold">Submit</button></div></div>`;
+ }
+ /* ---------- Odd one ---------- */
+ oddoneRound(s){
+  const sets=[
+   {q:'Which does not belong with the others?',a:'Jericho',xs:['Jerusalem','Bethlehem','Nazareth','Jericho'],why:'The other three are major places associated with Jesus’ life; Jericho is a different context.'},
+   {q:'Which is not one of the four Gospels?',a:'Acts',xs:['Matthew','Mark','Luke','Acts'],why:'Acts follows the Gospels and is a separate New Testament book.'},
+   {q:'Which person is not an apostle in the Twelve?',a:'Paul',xs:['Peter','Andrew','John','Paul'],why:'Paul is an apostle in the broader New Testament sense, but not one of the Twelve.'}
+  ];const x=this.rand(sets);this.odd=x;
+  s.innerHTML=`<div class="max-w-2xl mx-auto text-center"><div class="text-4xl">🔎</div><h3 class="text-2xl font-bold mt-3">${SEC.esc(x.q)}</h3><div class="grid grid-cols-2 gap-3 mt-6">${x.xs.map(v=>`<button class="card rounded-2xl p-5 font-bold" onclick="app.oddPick(this,'${SEC.esc(v)}')">${SEC.esc(v)}</button>`).join('')}</div><div id="oddExplain" class="text-sm muted mt-5"></div></div>`;
+ }
+ oddPick(btn,v){if(v===this.odd.a){this.addPoints(100);document.getElementById('oddExplain').textContent='Correct. '+this.odd.why}else{document.getElementById('oddExplain').textContent='Not this one. Try again.'}}
+ /* ---------- Category ---------- */
+ categoryRound(s){
+  const cats=['Women in Scripture','Prophets','Places in the Gospels','People connected to Paul','Kings of Israel/Judah','Books of the New Testament'];this.category=this.rand(cats);this.catAnswers=[];s.innerHTML=`<div class="max-w-2xl mx-auto text-center"><div class="text-4xl">🏃</div><h3 class="text-2xl font-bold mt-3">Category Rush</h3><div class="text-indigo-300 font-bold text-lg mt-2">${SEC.esc(this.category)}</div><p class="muted text-sm mt-2">Submit as many valid answers as you can. Avoid duplicates.</p><form onsubmit="app.catSubmit(event)" class="flex gap-2 mt-6"><input id="catInput" maxlength="35" class="flex-1 rounded-xl bg-black/20 border border-white/10 px-4 py-3" placeholder="Type one answer"><button class="bg-indigo-600 rounded-xl px-4 font-bold">Add</button></form><div id="catList" class="flex flex-wrap gap-2 mt-5 justify-center"></div></div>`}
+ catSubmit(e){e.preventDefault();if(!SEC.rate())return this.toast('Slow down','bad');const v=SEC.cleanChat(document.getElementById('catInput').value);if(!v)return;const valid={ 'Women in Scripture':['Mary','Ruth','Esther','Deborah','Lydia','Martha','Miriam','Sarah','Priscilla'], 'Prophets':['Moses','Samuel','Elijah','Elisha','Isaiah','Jeremiah','Ezekiel','Daniel','Jonah','Deborah','Miriam','John the Baptist'], 'Places in the Gospels':['Bethlehem','Nazareth','Jerusalem','Galilee','Capernaum','Bethany','Cana','Gethsemane'], 'People connected to Paul':['Timothy','Barnabas','Silas','Lydia','Priscilla','Aquila','Luke'], 'Kings of Israel/Judah':['David','Solomon','Saul','Hezekiah','Josiah','Ahab'], 'Books of the New Testament':['Matthew','Mark','Luke','John','Acts','Romans','James','Jude','Revelation']};if(!valid[this.category].some(x=>x.toLowerCase()===v.toLowerCase()))return this.toast('Not accepted for this category','bad');if(this.catAnswers.some(x=>x.toLowerCase()===v.toLowerCase()))return this.toast('Already used','bad');this.catAnswers.push(v);this.addPoints(25);document.getElementById('catList').innerHTML=this.catAnswers.map(x=>`<span class="px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-400/20 text-xs">${SEC.esc(x)}</span>`).join('');document.getElementById('catInput').value=''}
+ /* ---------- Emoji ---------- */
+ emojiRound(s){
+  const xs=[
+   {e:'👨‍🦯🦁🙏',a:'Daniel in the lions’ den'},
+   {e:'👨‍🌾🐑🔎',a:'Parable of the lost sheep'},
+   {e:'👨‍👦🏠🏃‍♂️🎉',a:'Prodigal son'},
+   {e:'🌊⛵😴➡️🤫',a:'Jesus calms the storm'},
+   {e:'🍞🐟👨‍👩‍👧‍👦',a:'Feeding of the five thousand'}
+  ];const x=this.rand(xs);this.emojiAnswer=x.a;s.innerHTML=`<div class="max-w-2xl mx-auto text-center"><div class="text-7xl">${x.e}</div><h3 class="text-2xl font-bold mt-6">Decode the Bible story</h3><div class="flex gap-2 mt-6"><input id="emojiIn" class="flex-1 rounded-xl bg-black/20 border border-white/10 px-4 py-3" placeholder="Your answer"><button onclick="app.answerText('emojiIn',app.emojiAnswer)" class="bg-indigo-600 rounded-xl px-4 font-bold">Guess</button></div></div>`;
+ }
+ /* ---------- Reference ---------- */
+ referenceRound(s){
+  const x=this.rand(VERSE_FACTS), decoys=this.rand([...VERSE_FACTS.filter(y=>y!==x),...VERSE_FACTS.filter(y=>y!==x)]);this.ref=x;const opts=[x,...VERSE_FACTS.filter(y=>y!==x).sort(()=>Math.random()-.5).slice(0,3)].sort(()=>Math.random()-.5);
+  s.innerHTML=`<div class="max-w-2xl mx-auto text-center"><div class="text-5xl">📖</div><div class="text-xs uppercase tracking-widest text-amber-300 mt-3">Reference Race</div><h3 class="text-3xl font-extrabold mt-2">${SEC.esc(x[0])}</h3><p class="muted mt-2">Which description belongs to this reference?</p><div class="grid sm:grid-cols-2 gap-3 mt-6">${opts.map(o=>`<button class="card rounded-2xl p-4 text-left" onclick="app.refPick(this,'${SEC.esc(o[1]).replace(/'/g,"\\'")}')"><b>${SEC.esc(o[1])}</b><small class="block muted mt-1">${SEC.esc(o[2])}</small></button>`).join('')}</div></div>`;
+ }
+ refPick(btn,a){if(a===this.ref[1]){this.addPoints(100);this.toast('Correct','good')}else this.toast('The answer was '+this.ref[1],'bad')}
+ /* ---------- common ---------- */
+ answerText(id,answer){if(!SEC.rate())return this.toast('Too many guesses — slow down','bad');const v=SEC.cleanChat(document.getElementById(id)?.value||'');if(v.toLowerCase()===String(answer).toLowerCase()){this.addPoints(120);this.toast('Correct!','good')}else this.toast('Not quite','bad')}
+ revealIfNeeded(){}
+ sendChat(e){e.preventDefault();if(!SEC.rate())return this.toast('Slow down','bad');const input=document.getElementById('chatInput'),msg=SEC.cleanChat(input.value);if(!msg)return;this.addChat(this.name,msg);input.value='';this.send({type:'CHAT',name:this.name,msg})}
+ addChat(name,msg){const d=document.createElement('div');d.className='rounded-xl bg-white/5 px-3 py-2';d.innerHTML=`<b>${SEC.esc(name)}</b><span class="muted"> ${SEC.esc(msg)}</span>`;const c=document.getElementById('chat');c.appendChild(d);c.scrollTop=c.scrollHeight}
+ toggleSound(){this.sound=!this.sound;document.getElementById('soundBtn').textContent=this.sound?'🔊':'🔇'}
+ beep(kind){if(!this.sound)return;try{const A=window.AudioContext||window.webkitAudioContext,ctx=new A(),o=ctx.createOscillator(),g=ctx.createGain();o.frequency.value=kind==='good'?660:220;g.gain.value=.04;o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+.08)}catch(e){}}
+ /* ---------- PeerJS room layer ---------- */
+ createRoom(){
+  if(this.peer)return;this.host=true;const code='FP'+Math.random().toString(36).slice(2,8).toUpperCase();this.room=code;
+  this.setConn('Hosting',true);this.roomUI();this.peer=new Peer(code,{debug:0});
+  this.peer.on('open',id=>{this.toast('Room created: '+code,'good');this.players=[];this.setHash()});
+  this.peer.on('connection',c=>{if(this.players.length>=19){c.close();return}c.on('data',d=>this.receive(d,c));c.on('close',()=>{this.players=this.players.filter(p=>p.id!==c.peer);this.renderPlayers()});this._clients=this._clients||{};this._clients[c.peer]=c});
+  this.peer.on('error',e=>this.toast('Connection error: '+SEC.esc(e.type),'bad'));
+ }
+ joinPrompt(){const code=prompt('Enter room code');if(code)this.joinRoom(code.trim().toUpperCase())}
+ joinRoom(code){
+  if(!/^FP[A-Z0-9]{6}$/.test(code))return this.toast('Invalid room code','bad');this.room=code;this.host=false;this.peer=new Peer({debug:0});
+  this.peer.on('open',()=>{this.conn=this.peer.connect(code,{reliable:true});this.conn.on('open',()=>{this.setConn('Connected',true);this.send({type:'JOIN',player:{id:this.peer.id,name:this.name,score:0}});this.roomUI();this.setHash();this.toast('Joined room','good')});this.conn.on('data',d=>this.receive(d,this.conn))});
+  this.peer.on('error',e=>this.toast('Could not join: '+e.type,'bad'));
+ }
+ receive(data,source){
+  if(!SEC.validPacket(data))return;
+  if(data.type==='JOIN'&&this.host&&data.player){const p={id:source.peer,name:SEC.cleanName(data.player.name),score:0};this.players=this.players.filter(x=>x.id!==p.id);this.players.push(p);this.renderPlayers();this.broadcast({type:'STATE',players:this.players})}
+  if(data.type==='CHAT'){this.addChat(SEC.cleanName(data.name),SEC.cleanChat(data.msg));if(this.host)this.broadcast(data,source.peer)}
+  if(data.type==='STATE'&&!this.host){this.players=Array.isArray(data.players)?data.players.slice(0,20):[];this.renderPlayers()}
+ }
+ send(data){if(!SEC.validPacket(data))return;if(this.host){this.broadcast(data)}else if(this.conn?.open)this.conn.send(data)}
+ broadcast(data,except=null){Object.entries(this._clients||{}).forEach(([id,c])=>{if(id!==except&&c.open)c.send(data)})}
+ roomUI(){document.getElementById('roomInfo').classList.remove('hidden');document.getElementById('roomCode').textContent=this.room;document.getElementById('roomBadge').textContent=this.room}
+ copyRoom(){const url=location.href.split('#')[0]+'#room='+this.room;navigator.clipboard?.writeText(url);this.toast('Invite link copied','good')}
+ setHash(){location.hash='room='+this.room}
+ checkHash(){const m=location.hash.match(/room=(FP[A-Z0-9]{6})/);if(m)this.joinRoom(m[1])}
+ setConn(t,on){document.getElementById('connText').textContent=t;document.getElementById('connDot').className='w-2 h-2 rounded-full '+(on?'bg-emerald-400 pulse':'bg-slate-500')}
+}
+let app=new App();window.addEventListener('DOMContentLoaded',()=>app.init());
+</script>
+</body>
+</html>

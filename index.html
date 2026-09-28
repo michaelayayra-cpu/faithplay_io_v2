@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Security: strict Content-Security-Policy. No inline scripts, no eval, only our own JS. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://0.peerjs.com wss://0.peerjs.com; media-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'; manifest-src 'self'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="FaithPlay.io — free Christian party games: draw & guess, Bible Guess Who, song quizzes (incl. African gospel), logic puzzles and more. Play with friends via a shareable link.">
+  <meta name="theme-color" content="#6c4cf1">
+  <title>FaithPlay.io — Bible & Gospel Party Games</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="#/" class="brand" aria-label="FaithPlay home">
+        <span class="brand-mark" aria-hidden="true">✝</span>
+        <span class="brand-name">FaithPlay<span class="brand-io">.io</span></span>
+      </a>
+      <div class="topbar-actions">
+        <span id="netStatus" class="status-pill" hidden></span>
+        <button id="soundBtn" class="icon-btn" type="button" aria-label="Toggle sound" title="Sound">🔊</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="app" class="container" aria-live="polite"></main>
+
+  <footer class="footer">
+    <p>FaithPlay.io · Games for fellowship, youth groups & family nights · Scripture quotes from the KJV (public domain)</p>
+  </footer>
+
+  <div id="toasts" class="toasts" aria-live="assertive"></div>
+  <div id="modalRoot"></div>
+
+  <noscript><p class="noscript">FaithPlay needs JavaScript enabled to run.</p></noscript>
+
+  <script src="js/vendor/peerjs.min.js"></script>
+  <script src="js/util.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/data/characters.js"></script>
+  <script src="js/data/trivia.js"></script>
+  <script src="js/data/songs.js"></script>
+  <script src="js/data/words.js"></script>
+  <script src="js/data/puzzles.js"></script>
+  <script src="js/net.js"></script>
+  <script src="js/games/generators.js"></script>
+  <script src="js/server.js"></script>
+  <script src="js/games/quiz-view.js"></script>
+  <script src="js/games/sketch.js"></script>
+  <script src="js/games/guesswho.js"></script>
+  <script src="js/games/logic.js"></script>
+  <script src="js/games/connections.js"></script>
+  <script src="js/games/orderit.js"></script>
+  <script src="js/games/faithle.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

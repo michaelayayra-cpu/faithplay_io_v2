@@ -41,111 +41,136 @@ function direction(a, b, n) {
   return 'Box ' + rowName(r2) + (c2 + 1);
 }
 
-FP.makeChain = function (seed, diff) {
+// Branch weights: how many clues a solved box gives (1, 2 or 3).
+const BRANCH = { chain: [1, 0, 0], multi: [0.45, 0.38, 0.17] };
+
+FP.makeChain = function (seed, diff, style = 'chain') {
   index();
   const cfg = DIFF[diff] || DIFF.medium;
   const n = cfg.size; const N = n * n;
   const rnd = FP.rng(seed);
+  const weights = BRANCH[style] || BRANCH.chain;
   const allowed = Object.values(ENT).filter((e) => cfg.tiers.includes(e.tier));
   if (allowed.length < N) allowed.push(...Object.values(ENT).filter((e) => !cfg.tiers.includes(e.tier)));
   const okIds = new Set(allowed.map((e) => e.id));
 
-  // 1) Entity sequence: follow relationships where possible, so clues read like a story.
   const used = new Set(); const usedAns = new Set();
   const free = (id) => okIds.has(id) && !used.has(id) && answersOf(id).every((a) => !usedAns.has(FP.norm(a)));
   const take = (id) => { used.add(id); answersOf(id).forEach((a) => usedAns.add(FP.norm(a))); };
-  const starters = allowed.filter((e) => (REL[e.id] || []).length >= 2);
-  let cur = FP.pick(starters.length ? starters : allowed, rnd).id;
-  const seq = [cur]; take(cur);
-  const links = [];
-  while (seq.length < N) {
-    const rel = (REL[cur] || []).filter((r) => free(r.to));
-    let next, via = null;
-    if (rel.length && rnd() < 0.85) { const r = FP.pick(rel, rnd); next = r.to; via = r.d; }
-    else {
-      const pool = allowed.filter((e) => free(e.id));
-      const withRel = pool.filter((e) => (REL[e.id] || []).some((r) => free(r.to) && r.to !== e.id));
-      next = FP.pick(withRel.length && rnd() < 0.7 ? withRel : pool, rnd).id;
-    }
-    links.push(via);
-    seq.push(next); take(next); cur = next;
-  }
+  const openCells = new Set([...Array(N).keys()]);
 
-  // 2) Cell walk: prefer boxes in line with the current one so directions stay natural.
-  const cells = [Math.floor(rnd() * N)];
-  const open = new Set([...Array(N).keys()].filter((c) => c !== cells[0]));
-  while (open.size) {
-    const a = cells[cells.length - 1];
-    const cand = [...open].map((b) => {
+  // Pick a child entity: follow a relationship where possible so clues read like a story.
+  function nextEntity(parentId) {
+    const rel = (REL[parentId] || []).filter((r) => free(r.to));
+    if (rel.length && rnd() < 0.85) { const r = FP.pick(rel, rnd); return { id: r.to, via: r.d }; }
+    const pool = allowed.filter((e) => free(e.id));
+    const withRel = pool.filter((e) => (REL[e.id] || []).some((r) => free(r.to)));
+    return { id: FP.pick(withRel.length && rnd() < 0.7 ? withRel : pool, rnd).id, via: null };
+  }
+  // Pick a child cell: prefer boxes in line with the parent so directions stay natural.
+  function nextCell(a) {
+    const cand = [...openCells].map((b) => {
       const dr = Math.abs(Math.floor(b / n) - Math.floor(a / n)), dc = Math.abs((b % n) - (a % n));
       const inLine = dr === 0 || dc === 0 || dr === dc;
-      const w = inLine ? (Math.max(dr, dc) === 1 ? cfg.near * 1.5 : cfg.near) : 1;
-      return { b, w };
+      return { b, w: inLine ? (Math.max(dr, dc) === 1 ? cfg.near * 1.5 : cfg.near) : 1 };
     });
-    let t = rnd() * cand.reduce((s, x) => s + x.w, 0);
-    let pickB = cand[cand.length - 1].b;
-    for (const x of cand) { t -= x.w; if (t <= 0) { pickB = x.b; break; } }
-    cells.push(pickB); open.delete(pickB);
+    let t = rnd() * cand.reduce((sum, x) => sum + x.w, 0);
+    for (const x of cand) { t -= x.w; if (t <= 0) return x.b; }
+    return cand[cand.length - 1].b;
+  }
+  function branches() {
+    const r = rnd(); let acc = 0;
+    for (let k = 0; k < 3; k++) { acc += weights[k]; if (r < acc) return k + 1; }
+    return 1;
   }
 
-  // 3) Build the grid and the clue each solved box gives.
+  // Grow a tree: every solved box reveals 1–3 clues, each pointing at a different box.
+  const starters = allowed.filter((e) => (REL[e.id] || []).length >= 2);
+  const rootId = FP.pick(starters.length ? starters : allowed, rnd).id;
+  const rootCell = Math.floor(rnd() * N);
   const grid = Array(N);
-  cells.forEach((c, i) => { grid[c] = seq[i]; });
+  grid[rootCell] = rootId; take(rootId); openCells.delete(rootCell);
+  const order = [rootCell];
   const clueFrom = {};
-  for (let i = 0; i < N - 1; i++) {
-    const a = cells[i], b = cells[i + 1];
-    const target = ENT[seq[i + 1]];
-    const what = links[i] || FP.pick(target.desc, rnd);
-    clueFrom[a] = { to: b, text: direction(a, b, n) + ' is ' + what + '.' };
+  const parentOf = {};
+  const queue = [rootCell];
+  let placed = 1;
+  while (placed < N) {
+    // Depth-first-ish: usually continue from the newest box, sometimes branch off an older one.
+    const a = queue.length > 1 && rnd() < 0.3 ? queue.splice(Math.floor(rnd() * queue.length), 1)[0] : queue.pop();
+    const k = Math.min(branches(), N - placed);
+    clueFrom[a] = [];
+    for (let j = 0; j < k; j++) {
+      const { id, via } = nextEntity(grid[a]);
+      const b = nextCell(a);
+      grid[b] = id; take(id); openCells.delete(b);
+      parentOf[b] = a; order.push(b); placed++;
+      clueFrom[a].push({ to: b, text: direction(a, b, n) + ' is ' + (via || FP.pick(ENT[id].desc, rnd)) + '.' });
+      queue.push(b);
+    }
+    if (!queue.length && placed < N) queue.push(order[order.length - 1]);
   }
-  return { n, grid, order: cells, clueFrom };
+  return { n, grid, root: rootCell, order, clueFrom, parentOf, style };
 };
 
 function chainPage(root, arg) {
   index();
-  let [diff, seedStr] = String(arg || '').split('-');
+  const parts = String(arg || '').split('-');
+  let diff = parts[0];
   if (!DIFF[diff]) diff = FP.store.get('chain_diff', 'medium');
-  const seed = parseInt(seedStr, 10);
+  let style = parts[2] === 'm' ? 'multi' : parts[2] === 'c' ? 'chain' : FP.store.get('chain_style', 'multi');
+  const seed = parseInt(parts[1], 10);
   const base = '#/p/logic/';
-  if (!Number.isInteger(seed) || seed < 0 || seed > 2 ** 31) { location.replace(base + diff + '-' + FP.newSeed()); return; }
+  const link = (d, st, sd) => base + d + '-' + sd + '-' + (st === 'multi' ? 'm' : 'c');
+  if (!Number.isInteger(seed) || seed < 0 || seed > 2 ** 31 || !parts[2]) { location.replace(link(diff, style, Number.isInteger(seed) ? seed : FP.newSeed())); return; }
   FP.store.set('chain_diff', diff);
+  FP.store.set('chain_style', style);
   const cfg = DIFF[diff];
-  const pz = FP.makeChain(seed, diff);
+  const pz = FP.makeChain(seed, diff, style);
   const { n } = pz; const N = n * n;
-  const solved = new Set([pz.order[0]]);
-  let pending = pz.clueFrom[pz.order[0]].to; // the box the latest clue points to
-  let sel = diff === 'easy' ? pending : null;
-  let gaveUp = false; let hints = 0; let letters = 0; let showTarget = diff === 'easy';
+  const solved = new Set([pz.root]);
+  const easy = diff === 'easy';
+  const shown = new Set();   // boxes whose target is highlighted (easy, or via hint)
+  const letters = new Map(); // box -> letters revealed by hints
+  let sel = null; let gaveUp = false; let hints = 0; let lastSolved = pz.root;
   const t0 = Date.now();
   let input;
   const label = (c) => rowName(Math.floor(c / n)) + ((c % n) + 1);
-  const latestFrom = () => pz.order[solved.size - 1];
+  // Open boxes = unsolved boxes whose clue-giver is solved.
+  const openBoxes = () => pz.order.filter((c) => !solved.has(c) && solved.has(pz.parentOf[c]));
+  const clueFor = (c) => pz.clueFrom[pz.parentOf[c]].find((x) => x.to === c);
+  const autoSelect = () => { const o = openBoxes(); if (easy && o.length === 1) sel = o[0]; else if (!o.includes(sel)) sel = null; };
+  autoSelect();
 
-  function solve() {
-    solved.add(pending);
+  function solve(c) {
+    solved.add(c); lastSolved = c;
     FP.sound.play('good');
-    if (solved.size === N) { pending = null; sel = null; render(); finish(); return; }
-    pending = pz.clueFrom[pending].to;
-    letters = 0; showTarget = diff === 'easy';
-    sel = diff === 'easy' ? pending : null;
+    sel = null;
+    if (solved.size === N) { render(); finish(); return; }
+    autoSelect();
     render();
   }
   function attempt(text, fuzzy) {
-    if (gaveUp || pending == null || !FP.norm(text)) return false;
-    const ans = answersOf(pz.grid[pending]);
-    const exact = ans.some((a) => FP.norm(a) === FP.norm(text));
-    const res = exact ? 'yes' : fuzzy ? FP.checkAnswer(text, ans) : 'no';
-    if (res === 'yes') {
-      if (sel !== pending) {
-        if (!fuzzy) return false; // wait for Enter before telling them off
-        FP.toast(sel == null ? 'Right answer! Now click the box the clue points to.' : 'Right answer — but wrong box! Re-read the direction.', 'bad');
-        FP.sound.play('bad');
-        return false;
-      }
-      solve();
-      return true;
+    if (gaveUp || !FP.norm(text)) return false;
+    const open = openBoxes();
+    const matches = (c, fz) => {
+      const ans = answersOf(pz.grid[c]);
+      if (ans.some((a) => FP.norm(a) === FP.norm(text))) return 'yes';
+      return fz ? FP.checkAnswer(text, ans) : 'no';
+    };
+    if (sel != null && open.includes(sel)) {
+      const r = matches(sel, fuzzy);
+      if (r === 'yes') { solve(sel); return true; }
+      if (!fuzzy) return false;
+      if (open.some((c) => c !== sel && matches(c, true) === 'yes')) { FP.toast('Right answer — but it belongs in a different box! Re-read the directions.', 'bad'); FP.sound.play('bad'); return false; }
+      FP.toast(r === 'close' ? 'So close — check the spelling.' : 'Not quite. Try again!', r === 'close' ? '' : 'bad');
+      if (r !== 'close') FP.sound.play('bad');
+      return false;
     }
-    if (fuzzy) { FP.toast(res === 'close' ? 'So close — check the spelling.' : 'Not quite. Try again!', res === 'close' ? '' : 'bad'); if (res !== 'close') FP.sound.play('bad'); }
+    if (!fuzzy) return false;
+    if (open.some((c) => matches(c, true) === 'yes')) FP.toast(sel == null ? 'Right answer! Now click the box its clue points to.' : 'Right answer — but wrong box! Re-read the directions.', 'bad');
+    else FP.toast('Not quite. Pick an open clue, click its box, then type.', 'bad');
+    FP.sound.play('bad');
     return false;
   }
   function finish() {
@@ -153,25 +178,28 @@ function chainPage(root, arg) {
     FP.sound.play('win');
     FP.store.set('chain_solved', FP.store.get('chain_solved', 0) + 1);
     const time = Math.floor(secs / 60) + 'm ' + (secs % 60) + 's';
-    const text = 'I solved Hallelujoy Clue Chain #' + seed + ' (' + cfg.label + ', ' + N + ' boxes) in ' + time + ' with ' + FP.plural(hints, 'hint') + '!\n' + location.href;
+    const text = 'I solved Hallelujoy Clue Chain #' + seed + ' (' + cfg.label + (style === 'multi' ? ', branching' : '') + ', ' + N + ' boxes) in ' + time + ' with ' + FP.plural(hints, 'hint') + '!\n' + location.href;
     FP.modal(h('div', { class: 'stack center' }, h('div', { class: 'big-emoji', text: '⛓️' }), h('h2', { text: 'Grid complete!' }),
       h('p', { class: 'muted', text: N + ' boxes in ' + time + ' · ' + FP.plural(hints, 'hint') }),
       h('div', { class: 'row', style: { justifyContent: 'center' } },
         h('button', { class: 'btn', type: 'button', onclick: () => FP.copy(text) }, '📋 Copy result'),
         h('button', { class: 'btn', type: 'button', onclick: () => FP.share('Can you solve this Hallelujoy Clue Chain?', location.href) }, '🔗 Challenge a friend'),
-        h('a', { class: 'btn btn-primary', href: base + diff + '-' + FP.newSeed() }, 'Next puzzle ▶'))));
+        h('a', { class: 'btn btn-primary', href: link(diff, style, FP.newSeed()) }, 'Next puzzle ▶'))));
   }
   function hint() {
-    if (pending == null) return;
-    hints++;
-    if (!showTarget) { showTarget = true; FP.toast('The highlighted box is where the clue points.'); }
-    else if (letters < ENT[pz.grid[pending]].name.replace(/[^a-z]/gi, '').length - 1) letters++;
-    else { FP.toast('No more hints for this box!'); hints--; }
+    const open = openBoxes();
+    if (!open.length) return;
+    // Hint the selected open box, else the oldest open clue.
+    const c = open.includes(sel) ? sel : open[0];
+    const len = ENT[pz.grid[c]].name.replace(/[^a-z]/gi, '').length;
+    if (!easy && !shown.has(c)) { shown.add(c); hints++; FP.toast('Box ' + label(c) + ' is highlighted — that\'s where this clue points.'); }
+    else if ((letters.get(c) || 0) < len - 1) { letters.set(c, (letters.get(c) || 0) + 1); hints++; }
+    else FP.toast('No more hints for that box!');
     render();
   }
-  function pattern(id) {
-    let k = 0;
-    return ENT[id].name.split('').map((ch) => (/[a-z]/i.test(ch) ? (++k <= letters ? ch.toUpperCase() : '_') : ch === ' ' ? ' ' : ch)).join(' ');
+  function pattern(c) {
+    let k = 0; const lim = letters.get(c) || 0;
+    return ENT[pz.grid[c]].name.split('').map((ch) => (/[a-z]/i.test(ch) ? (++k <= lim ? ch.toUpperCase() : '_') : ch === ' ' ? ' ' : ch)).join(' ');
   }
 
   function render() {
@@ -179,32 +207,52 @@ function chainPage(root, arg) {
     FP.clear(root);
     const card = h('div', { class: 'card stage' });
     card.append(FP.ui.stageHead('logic', 'Puzzle #' + seed + ' · ' + n + '×' + n, null, null,
-      h('div', { class: 'seg' }, Object.keys(DIFF).map((d) => h('a', { class: d === diff ? 'on' : '', href: base + d + '-' + FP.newSeed() }, DIFF[d].label)))));
-    card.append(h('p', { class: 'small muted mb', text: 'Start at the gold box. Each solved box tells you where the next one is and who (or what) is in it. Click that box, type the answer, and keep following the chain. ' + cfg.note }));
+      h('div', { class: 'row', style: { gap: '6px' } },
+        h('div', { class: 'seg', title: 'Clue style' },
+          h('a', { class: style === 'chain' ? 'on' : '', href: link(diff, 'chain', FP.newSeed()), title: 'Every box gives one clue' }, 'Chain'),
+          h('a', { class: style === 'multi' ? 'on' : '', href: link(diff, 'multi', FP.newSeed()), title: 'Some boxes give 2–3 clues' }, 'Branching')),
+        h('div', { class: 'seg', title: 'Difficulty' }, Object.keys(DIFF).map((d) => h('a', { class: d === diff ? 'on' : '', href: link(d, style, FP.newSeed()) }, DIFF[d].label))))));
+    card.append(h('p', { class: 'small muted mb', text: 'Start at the gold box. Each solved box tells you where another box is and who (or what) is in it' +
+      (style === 'multi' ? ' — some boxes give 2 or 3 clues at once, so you can solve open boxes in any order' : '') +
+      '. Click the box a clue points to, type the answer, and keep going. ' + cfg.note }));
 
-    // Latest clue, big
-    const pend = pending != null ? ENT[pz.grid[pending]] : null;
-    const latest = h('div', { class: 'q-card chain-latest mb' });
-    if (gaveUp) latest.append(h('div', { class: 'q-prompt', text: 'Answers revealed — try a new puzzle!' }));
-    else if (pend) {
-      latest.append(h('div', { class: 'q-cat', text: 'Clue from box ' + label(latestFrom()) + ' · ' + ENT[pz.grid[latestFrom()]].name }),
-        h('div', { class: 'q-prompt', text: pz.clueFrom[latestFrom()].text }));
-      const meta = [];
-      if (diff !== 'hard') meta.push(FP.CHAIN_TYPES[pend.type].icon + ' ' + FP.CHAIN_TYPES[pend.type].label);
-      if (letters || diff === 'easy') meta.push(pattern(pend.id));
-      if (meta.length) latest.append(h('div', { class: 'q-sub', text: meta.join('   ·   ') }));
-    } else latest.append(h('div', { class: 'q-prompt', text: '🎉 Every box solved!' }));
-    card.append(latest);
+    // Open clues
+    const open = openBoxes();
+    const list = h('div', { class: 'q-card chain-latest mb' });
+    if (gaveUp) list.append(h('div', { class: 'q-prompt', text: 'Answers revealed — try a new puzzle!' }));
+    else if (!open.length) list.append(h('div', { class: 'q-prompt', text: '🎉 Every box solved!' }));
+    else {
+      list.append(h('div', { class: 'q-cat', text: open.length === 1 ? 'Open clue' : open.length + ' open clues — solve them in any order' }));
+      const ordered = open.slice().sort((x, y) => (pz.parentOf[y] === lastSolved) - (pz.parentOf[x] === lastSolved));
+      const wrap = h('div', { class: 'chain-clues' });
+      list.append(wrap);
+      ordered.forEach((c) => {
+        const e = ENT[pz.grid[c]];
+        const from = pz.parentOf[c];
+        const meta = [];
+        if (diff !== 'hard') meta.push(FP.CHAIN_TYPES[e.type].icon + ' ' + FP.CHAIN_TYPES[e.type].label);
+        if (easy || letters.get(c)) meta.push(pattern(c));
+        const isSel = sel === c;
+        wrap.append(h('button', { type: 'button', class: 'chain-clue' + (isSel ? ' on' : '') + (pz.parentOf[c] === lastSolved ? ' new' : '') + (easy || shown.has(c) ? ' can-pick' : ''),
+          title: easy || shown.has(c) ? 'Select box ' + label(c) : 'Find the box this clue points to on the grid',
+          onclick: () => { if (easy || shown.has(c)) { sel = c; render(); } else FP.toast('Work out which box this clue points to, then click it on the grid.'); } },
+          h('span', { class: 'tiny muted', text: 'From ' + label(from) + ' · ' + ENT[pz.grid[from]].name }),
+          h('div', { class: 'q-prompt', text: clueFor(c).text }),
+          meta.length ? h('div', { class: 'q-sub', text: meta.join('   ·   ') }) : null,
+          isSel ? h('span', { class: 'chip primary', text: 'Box ' + label(c) + ' selected' }) : null));
+      });
+    }
+    card.append(list);
 
-    input = h('input', { class: 'input', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Answer', disabled: gaveUp || pending == null,
-      placeholder: sel == null ? 'Click the box the clue points to, then type…' : 'Answer for box ' + label(sel) + '…' });
+    input = h('input', { class: 'input', autocomplete: 'off', spellcheck: 'false', 'aria-label': 'Answer', disabled: gaveUp || !open.length,
+      placeholder: sel == null ? 'Click the box a clue points to, then type…' : 'Answer for box ' + label(sel) + '…' });
     input.value = val;
     input.addEventListener('input', () => { if (attempt(input.value, false)) input.value = ''; });
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (attempt(input.value, true)) input.value = ''; } });
     card.append(h('div', { class: 'row mb', style: { flexWrap: 'nowrap' } }, input,
       h('span', { class: 'chip primary', text: solved.size + '/' + N }),
-      h('button', { class: 'btn btn-sm', type: 'button', disabled: gaveUp || pending == null, onclick: hint }, '💡 Hint'),
-      h('button', { class: 'btn btn-sm btn-ghost', type: 'button', disabled: gaveUp || pending == null, onclick: () => { if (confirm('Give up and reveal every box?')) { gaveUp = true; render(); } } }, 'Give up')));
+      h('button', { class: 'btn btn-sm', type: 'button', disabled: gaveUp || !open.length, onclick: hint }, '💡 Hint'),
+      h('button', { class: 'btn btn-sm btn-ghost', type: 'button', disabled: gaveUp || !open.length, onclick: () => { if (confirm('Give up and reveal every box?')) { gaveUp = true; render(); } } }, 'Give up')));
 
     const grid = h('div', { class: 'chain-grid', style: { '--n': String(n) } });
     for (let c = 0; c < N; c++) {
@@ -212,23 +260,25 @@ function chainPage(root, arg) {
       const isSolved = solved.has(c);
       const cls = ['chain-cell'];
       if (isSolved) cls.push('open');
-      if (c === pz.order[0]) cls.push('start');
+      if (c === pz.root) cls.push('start');
       if (gaveUp && !isSolved) cls.push('missed');
       if (!isSolved && c === sel) cls.push('sel');
-      if (!isSolved && showTarget && c === pending) cls.push('target');
+      if (!isSolved && open.includes(c) && (easy || shown.has(c))) cls.push('target');
       const kids = [h('span', { class: 'ct', text: label(c) })];
       if (isSolved || gaveUp) {
         kids.push(h('b', { text: e.name }));
-        if (pz.clueFrom[c] && isSolved) kids.push(h('span', { class: 'cc', text: pz.clueFrom[c].text }));
+        const cl = pz.clueFrom[c] || [];
+        if (isSolved && cl.length > 1) kids.push(h('span', { class: 'ct', text: cl.length + ' clues' }));
+        if (isSolved) cl.forEach((x) => kids.push(h('span', { class: 'cc' + (solved.has(x.to) ? ' done' : ''), text: x.text })));
       } else kids.push(h('span', { class: 'cq', text: '?' }));
       grid.append(h('button', { type: 'button', class: cls.join(' '), 'aria-label': 'Box ' + label(c), onclick: () => {
-        if (isSolved || gaveUp || pending == null) return;
+        if (isSolved || gaveUp || !open.length) return;
         sel = c; FP.sound.play('tick'); render(); input.focus();
       } }, kids));
     }
     card.append(h('div', { class: 'chain-scroll' }, grid));
     card.append(h('div', { class: 'row mt' },
-      h('a', { class: 'btn btn-primary', href: base + diff + '-' + FP.newSeed() }, '🔄 New puzzle'),
+      h('a', { class: 'btn btn-primary', href: link(diff, style, FP.newSeed()) }, '🔄 New puzzle'),
       h('button', { class: 'btn', type: 'button', onclick: () => FP.share('Can you solve this Hallelujoy Clue Chain?', location.href) }, '🔗 Share this puzzle')));
     root.append(card);
     if (sel != null) setTimeout(() => input.focus(), 0);

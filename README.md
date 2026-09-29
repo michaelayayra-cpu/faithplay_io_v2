@@ -15,7 +15,7 @@
 | 💬 **Who Said It?** | Solo / room | 48 KJV quotes. |
 | 🔀 **Scripture Scramble** | Solo / room | 149 words. Letter hints appear as the timer runs down. |
 | 🎲 **Revival Mix** | Solo / room | A random mix of all the quiz types. |
-| 🧩 **Clue Chain Grid** | Solo, shareable | Sporcle click-grid style. One box starts solved and every solved box gives a clue to another box ("Directly below me is my older sister"). You click that box and name the Bible person, place, object or book. Grids are 3×3 (easy), 4×4 (medium) or 5×5 (hard). |
+| 🧩 **Clue Chain Grid** | Solo, shareable | Sporcle click-grid style. One box starts solved and every solved box gives a clue to another box ("Directly below me is my older sister"). You click that box and name the Bible person, place, object or book. Grids are 3×3 (easy), 4×4 (medium) or 5×5 (hard). Two clue styles: **Chain** (every box gives one clue) or **Branching** (some boxes give 2–3 clues for different boxes, so several are open at once and you solve them in any order). |
 | 🔎 **Deduction Grid** | Solo, shareable | Classic logic-grid puzzles in imagined Bible scenes, **guaranteed to have exactly one solution**. Easy, medium and hard. |
 | 🔗 **Bible Connections** | Solo, shareable | Group 16 words into 4 hidden categories. Groups are checked so each word fits only one of them. Easy shows the category names and allows 6 mistakes; hard uses deep-cut categories and allows 3. |
 | 📅 **Order It** | Solo, shareable | Put books, timelines and lives in order. Easy: 4 items, 4 tries. Medium: 5–6 items, 3 tries. Hard: 7 items, 2 tries. |
@@ -37,7 +37,7 @@
 - Room invite: `https://your-site/#/r/ABC123`
 - New room with a game picked: `#/host/sketch`, `#/host/trivia`, …
 - Solo quiz: `#/play/trivia`, `#/play/song`, `#/play/whoami`, `#/play/guesswho`, …
-- One specific puzzle, so a friend gets exactly the same one: `#/p/logic/medium-123456` (Clue Chain), `#/p/deduce/hard-55`, `#/p/connections/easy-98765`, `#/p/orderit/hard-4242`
+- One specific puzzle, so a friend gets exactly the same one: `#/p/logic/medium-123456-m` (Clue Chain; `-m` branching, `-c` single chain), `#/p/deduce/hard-55`, `#/p/connections/easy-98765`, `#/p/orderit/hard-4242`
 - Today's Faithle: `#/p/faithle`
 
 ## How multiplayer works

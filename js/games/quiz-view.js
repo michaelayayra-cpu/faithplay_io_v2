@@ -211,11 +211,11 @@ FP.views.lobby = function (room) {
         sets.append(setting('Draw time', [60, 80, 100, 120], s.time, (v) => v + 's', 'time'));
       } else if (mode.kind === 'gw') {
         sets.append(setting('Rounds', [1, 2, 3, 5], s.rounds, String, 'rounds'));
-        sets.append(setting('Time per round', [120, 180, 240], s.time, (v) => v / 60 + ' min', 'time'));
+        sets.append(setting('Time per turn', [30, 60, 90, 120], s.time, (v) => v + 's', 'time'));
       }
       body.append(h('div', { class: 'card mt', style: { boxShadow: 'none', background: 'var(--surface-2)' } },
         h('div', { class: 'row' }, h('div', { class: 'game-icon', style: { '--hue': mode.hue }, text: mode.icon }), h('div', { class: 'grow' }, h('h3', { text: mode.title }), h('p', { class: 'small muted', text: mode.desc }))),
-        mode.kind === 'gw' ? h('p', { class: 'tiny muted mt', text: 'Room mode: everyone gets the same board and races to find one secret character. Fewer questions = more points. One wrong guess and you\'re out for the round!' }) : null,
+        mode.kind === 'gw' ? h('p', { class: 'tiny muted mt', text: 'Classic 1-v-1 duels: each player gets a secret character. Take turns asking yes/no questions (from the list or your own) — your opponent answers — until someone guesses. A wrong guess loses! With more than 2 players, everyone is paired up; with an odd number, one player sits out each round.' }) : null,
         mode.kind === 'sketch' ? h('p', { class: 'tiny muted mt', text: 'Needs at least 2 players. Guess by typing in the chat.' }) : null,
         mode.kind === 'quiz' ? h('p', { class: 'tiny muted mt', text: 'Stuck? ⏭ Skip for now sends a question to the end so you can come back to it. 🤷 I don\'t know passes it. Easy = famous questions, 3 choices & extra time; Hard = deep cuts & less time.' + (room.solo ? '' : ' In rooms, a question is saved for later if anyone skips it.') }) : null,
         sets));

@@ -302,14 +302,14 @@ label.lbl { display: block; font-size: .72rem; font-weight: 600; text-transform:
 .size-dot { background: var(--text); border-radius: 50%; display: block; }
 
 /* ---------- Guess Who ---------- */
-.gw-board { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.gw-board { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
 .gw-tile {
   position: relative; border-radius: 14px; border: 2px solid var(--line); background: var(--surface);
   padding: 10px 4px 8px; text-align: center; cursor: pointer; transition: transform .25s ease, opacity .25s ease, filter .25s;
   display: flex; flex-direction: column; align-items: center; gap: 2px; min-height: 96px;
 }
 .gw-tile .face { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 1.5rem; }
-.gw-tile .nm { font-size: .74rem; font-weight: 700; line-height: 1.15; }
+.gw-tile .nm { font-size: .74rem; font-weight: 700; line-height: 1.15; overflow-wrap: anywhere; }
 .gw-tile .rl { font-size: .62rem; color: var(--muted); line-height: 1.1; }
 .gw-tile:hover { border-color: var(--primary); }
 .gw-tile.down { opacity: .28; filter: grayscale(1); transform: perspective(400px) rotateX(35deg) scale(.94); }
@@ -416,12 +416,12 @@ label.lbl { display: block; font-size: .72rem; font-weight: 600; text-transform:
   .room .side { position: static; }
   .chat { height: 320px; }
   .logic-layout { grid-template-columns: 1fr; }
-  .gw-board { grid-template-columns: repeat(4, 1fr); }
+  .gw-board { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .gw-panel { grid-template-columns: 1fr; }
 }
 @media (max-width: 520px) {
   .choices { grid-template-columns: 1fr; }
-  .gw-board { grid-template-columns: repeat(3, 1fr); }
+  .gw-board { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .avatar-grid { grid-template-columns: repeat(6, 1fr); }
   .palette { grid-template-columns: repeat(10, 20px); }
   .swatch { width: 20px; height: 20px; }
@@ -462,3 +462,22 @@ label.lbl { display: block; font-size: .72rem; font-weight: 600; text-transform:
 .chain-clue.new { border-color: var(--primary); }
 .chain-clue.on { background: var(--primary-soft); border-color: var(--primary); }
 .chain-cell .cc.done { opacity: .5; text-decoration: line-through; }
+
+/* ---------- Guess Who portraits & duel ---------- */
+.gw-tile .face { width: min(78px, 100%); height: auto; aspect-ratio: 1; border-radius: 50%; overflow: hidden; position: relative; display: block; box-shadow: inset 0 0 0 2px rgba(255,255,255,.6); }
+.gw-tile .face svg { width: 100%; height: 100%; display: block; }
+.gw-tile .face .prop { position: absolute; right: -2px; bottom: -2px; font-size: .95rem; background: var(--surface); border-radius: 50%; width: 22px; height: 22px; display: grid; place-items: center; box-shadow: var(--shadow); }
+.gw-tile { min-height: 132px; }
+.gw-tile.down .face { filter: grayscale(1); }
+.mini-face { width: 56px; height: 56px; border-radius: 50%; overflow: hidden; flex-shrink: 0; }
+.mini-face svg { width: 100%; height: 100%; display: block; }
+.gw-top { display: flex; gap: 12px; align-items: stretch; flex-wrap: wrap; }
+.gw-top .secret-card { min-width: 220px; }
+.gw-action { min-width: 260px; }
+.gw-ask-card { background: var(--surface-2); border-radius: 14px; padding: 12px 14px; height: 100%; }
+.gw-ask-card .q-prompt { margin: 4px 0 8px; font-size: 1.15rem; }
+.gw-yes { background: var(--ok); border-color: var(--ok); color: #fff; min-width: 120px; }
+.gw-yes:hover { background: #15803d; }
+.gw-no { background: var(--bad); border-color: var(--bad); color: #fff; min-width: 120px; }
+.gw-no:hover { background: #be123c; }
+@media (max-width: 520px) { .gw-tile .face { width: min(60px, 100%); } .gw-top .secret-card, .gw-action { min-width: 0; width: 100%; } }

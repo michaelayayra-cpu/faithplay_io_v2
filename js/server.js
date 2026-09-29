@@ -134,7 +134,7 @@ class Server {
     if (FP.DIFFS.includes(s.diff) && this.settings.diff) this.settings.diff = s.diff;
     const kind = FP.MODES[this.mode].kind;
     const R = kind === 'quiz' ? [3, 30] : [1, 6];
-    const T = kind === 'sketch' ? [30, 180] : kind === 'gw' ? [60, 300] : [10, 60];
+    const T = kind === 'sketch' ? [30, 180] : kind === 'gw' ? [20, 180] : [10, 60];
     if (Number.isInteger(s.rounds)) this.settings.rounds = Math.min(R[1], Math.max(R[0], s.rounds));
     if (Number.isInteger(s.time)) this.settings.time = Math.min(T[1], Math.max(T[0], s.time));
     if (this.mode === 'trivia' && FP.TRIVIA_CATS.includes(s.cat)) this.settings.cat = s.cat;
@@ -491,69 +491,139 @@ class SketchEngine {
 }
 
 /* ======================================================================= */
-/* Guess Who race — everyone hunts the same secret character                */
+/* Guess Who duels — classic 1-v-1, turn by turn. Each player has a secret  */
+/* character; players ask questions and the OPPONENT answers yes/no.        */
+/* With more than two players, everyone is paired into simultaneous duels.  */
 /* ======================================================================= */
 class GuessWhoEngine {
-  constructor(srv) { this.srv = srv; this.minPlayers = 1; this.timers = []; this.round = 0; }
-  later(fn, ms) { this.timers.push(setTimeout(fn, ms)); }
-  clearTimers() { this.timers.forEach(clearTimeout); this.timers = []; }
+  constructor(srv) { this.srv = srv; this.minPlayers = 2; this.round = 0; this.matches = []; this.timers = []; }
+  later(fn, ms) { const t = setTimeout(fn, ms); this.timers.push(t); return t; }
+  clearTimers() { this.timers.forEach(clearTimeout); this.timers = []; this.matches.forEach((m) => clearTimeout(m.timer)); }
   start() { this.rounds = this.srv.settings.rounds; this.nextRound(); }
+  other(m, pid) { return pid === m.a ? m.b : m.a; }
+  matchOf(pid) { return this.matches.find((m) => m.a === pid || m.b === pid); }
   nextRound() {
     this.clearTimers();
     this.round++;
     if (this.round > this.rounds) return this.srv.endGame();
-    const rnd = FP.mathRng();
-    this.board = FP.gwBoard(rnd, 24);
-    this.secret = FP.charById(FP.pick(this.board, rnd));
-    this.asked = new Map();
-    this.done = new Map();
+    const ids = [...this.srv.players.keys()];
+    if (ids.length < 2) return this.srv.endGame();
+    // Rotate who plays whom each round.
+    const k = (this.round - 1) % ids.length;
+    const order = ids.slice(k).concat(ids.slice(0, k));
+    if (order.length > 2 && this.round > 1) order.splice(1, 0, order.pop());
+    this.sitOut = order.length % 2 ? order.pop() : null;
+    this.turnMs = this.srv.settings.time * 1000;
     this.phase = 'play';
-    this.dur = this.srv.settings.time * 1000;
-    this.deadline = Date.now() + this.dur;
-    this.later(() => this.reveal(), this.dur);
+    this.matches = [];
+    for (let i = 0; i < order.length; i += 2) {
+      const rnd = FP.mathRng();
+      const board = FP.gwBoard(rnd, 24);
+      const a = order[i], b = order[i + 1];
+      const secA = FP.pick(board, rnd);
+      let secB = FP.pick(board, rnd);
+      while (secB === secA) secB = FP.pick(board, rnd);
+      const m = { id: 'm' + i, a, b, board, secret: { [a]: secA, [b]: secB }, turn: rnd() < 0.5 ? a : b, step: 'ask', q: null, log: [], asked: { [a]: 0, [b]: 0 }, winner: null, result: null, deadline: 0, timer: null };
+      this.matches.push(m);
+      this.srv.sendTo(a, { t: 'gw_secret', round: this.round, id: secA });
+      this.srv.sendTo(b, { t: 'gw_secret', round: this.round, id: secB });
+      this.arm(m);
+    }
     this.srv.pushState();
   }
-  frac() { return Math.max(0, Math.min(1, (this.deadline - Date.now()) / this.dur)); }
+  // Each step (asking or answering) has a time limit so nobody can stall a duel.
+  arm(m) {
+    clearTimeout(m.timer);
+    m.deadline = Date.now() + this.turnMs;
+    m.timer = setTimeout(() => this.timeout(m), this.turnMs);
+  }
+  timeout(m) {
+    if (m.winner) return;
+    if (m.step === 'ask') {
+      m.log.push({ by: m.turn, timeout: true });
+      m.turn = this.other(m, m.turn);
+    } else {
+      // The answerer ran out of time: a list question is answered from their card, a custom one is dropped.
+      const answerer = this.other(m, m.turn);
+      const c = FP.charById(m.secret[answerer]);
+      if (m.q.k) m.log.push({ by: m.turn, k: m.q.k, text: m.q.text, a: c.traits.has(m.q.k), auto: true });
+      else m.log.push({ by: m.turn, text: m.q.text, a: null, auto: true });
+      m.asked[m.turn]++;
+      m.turn = answerer;
+      m.q = null;
+      m.step = 'ask';
+    }
+    this.arm(m);
+    this.srv.pushState();
+  }
   onMessage(pid, m) {
     if (m.t === 'next' && this.srv.isHost(pid) && this.phase === 'reveal') return this.nextRound();
-    if (this.phase !== 'play' || this.done.has(pid)) return;
+    const mt = this.matchOf(pid);
+    if (!mt || mt.winner || this.phase !== 'play') return;
     if (m.t === 'gw_ask') {
-      if (!FP.GW_QUESTIONS.some((q) => q.k === m.k)) return;
-      const n = (this.asked.get(pid) || 0) + 1;
-      if (n > 60) return;
-      this.asked.set(pid, n);
-      this.srv.sendTo(pid, { t: 'gw_ans', k: m.k, a: this.secret.traits.has(m.k) });
+      if (mt.step !== 'ask' || mt.turn !== pid) return;
+      let q;
+      if (typeof m.k === 'string') { const def = FP.GW_QUESTIONS.find((x) => x.k === m.k); if (!def) return; q = { k: def.k, text: def.q }; }
+      else if (typeof m.text === 'string') {
+        let text = FP.cleanText(m.text, 120);
+        if (text.length < 3) return;
+        if (!/[?]$/.test(text)) text += '?';
+        q = { k: null, text };
+      } else return;
+      if (mt.log.length > 200) return;
+      mt.q = q; mt.step = 'answer';
+      this.arm(mt);
+      this.srv.pushState();
+    } else if (m.t === 'gw_reply') {
+      if (mt.step !== 'answer' || pid !== this.other(mt, mt.turn) || typeof m.a !== 'boolean') return;
+      mt.log.push({ by: mt.turn, k: mt.q.k, text: mt.q.text, a: m.a });
+      mt.asked[mt.turn]++;
+      mt.turn = pid; // the one who answered asks next
+      mt.q = null; mt.step = 'ask';
+      this.arm(mt);
       this.srv.pushState();
     } else if (m.t === 'gw_guess') {
-      if (!this.board.includes(m.id)) return;
-      const ok = m.id === this.secret.id;
-      const q = this.asked.get(pid) || 0;
-      const pts = ok ? Math.max(150, 900 - 45 * q) + Math.round(250 * this.frac()) : 0;
-      this.done.set(pid, { ok, pts });
-      if (pts) this.srv.addScore(pid, pts);
-      this.srv.sendTo(pid, { t: 'gw_res', ok, pts, id: ok ? this.secret.id : null });
-      if (!this.srv.solo) this.srv.sys(ok ? this.srv.name(pid) + ' found the secret character with ' + FP.plural(q, 'question') + '! +' + pts : this.srv.name(pid) + ' guessed wrong and is out this round.', ok ? 'good' : 'sys');
-      this.srv.pushPlayers();
-      this.srv.pushState();
-      if (this.done.size >= this.srv.players.size) this.reveal();
+      if (mt.step !== 'ask' || mt.turn !== pid || !mt.board.includes(m.id)) return;
+      const opp = this.other(mt, pid);
+      const ok = m.id === mt.secret[opp];
+      this.finish(mt, ok ? pid : opp, { guesser: pid, id: m.id, ok });
     }
   }
-  onChat() { return false; }
-  reveal() {
-    if (this.phase === 'reveal') return;
-    this.clearTimers();
-    this.phase = 'reveal';
+  finish(mt, winner, result) {
+    clearTimeout(mt.timer);
+    mt.winner = winner; mt.result = result; mt.step = 'done';
+    const pts = Math.max(300, 1000 - 60 * mt.asked[winner]);
+    this.srv.addScore(winner, pts);
+    mt.result.pts = pts;
+    const g = this.srv.name(result.guesser);
+    if (result.forfeit) this.srv.sys(this.srv.name(winner) + ' wins — their opponent left.', 'good');
+    else if (result.ok) this.srv.sys('🎯 ' + g + ' guessed right and beat ' + this.srv.name(this.other(mt, winner)) + '! +' + pts, 'good');
+    else this.srv.sys(g + ' guessed wrong — ' + this.srv.name(winner) + ' wins the duel! +' + pts, 'good');
     this.srv.pushPlayers();
+    if (this.matches.every((m) => m.winner)) {
+      this.phase = 'reveal';
+      this.later(() => this.nextRound(), 9000);
+    }
     this.srv.pushState();
-    this.later(() => this.nextRound(), 7000);
   }
+  onChat() { return false; }
   publicState() {
-    const st = { kind: 'gw', phase: this.phase, round: this.round, rounds: this.rounds, board: this.board, dur: this.dur, remaining: Math.max(0, this.deadline - Date.now()), asked: Object.fromEntries(this.asked), done: Object.fromEntries([...this.done].map(([k, v]) => [k, v.ok])) };
-    if (this.phase === 'reveal') st.secret = this.secret.id;
-    return st;
+    const now = Date.now();
+    return {
+      kind: 'gw', phase: this.phase, round: this.round, rounds: this.rounds, sitOut: this.sitOut, dur: this.turnMs,
+      matches: this.matches.map((m) => ({
+        id: m.id, a: m.a, b: m.b, board: m.board, turn: m.turn, step: m.step, q: m.q, log: m.log, asked: m.asked,
+        winner: m.winner, result: m.result, remaining: m.winner ? 0 : Math.max(0, m.deadline - now),
+        secret: m.winner ? m.secret : null, // revealed only when the duel is over
+      })),
+    };
   }
-  onJoin() {}
-  onLeave() { if (this.phase === 'play' && this.srv.players.size && this.done.size >= this.srv.players.size) this.reveal(); }
+  onJoin() {} // late joiners watch until the next round
+  onLeave(pid) {
+    const mt = this.matchOf(pid);
+    if (mt && !mt.winner) this.finish(mt, this.other(mt, pid), { guesser: pid, forfeit: true, ok: false });
+    if (this.sitOut === pid) this.sitOut = null;
+  }
   stop() { this.clearTimers(); }
 }
 

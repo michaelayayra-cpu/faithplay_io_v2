@@ -7,7 +7,7 @@
 | Game | Type | Notes |
 |---|---|---|
 | 🎨 **Sketch & Guess** | Room (2–12) | Skribbl-style. The artist picks 1 of 3 words (~240 Bible/church words), everyone else guesses in chat. Includes letter hints, fill bucket, undo, and "close guess" notices. |
-| 🕵️ **Bible Guess Who** | Solo vs CPU, or room race | 24 random characters from a pool of 63, with 19 yes/no questions. Every board is guaranteed solvable. The CPU has easy, normal and hard levels. |
+| 🕵️ **Bible Guess Who** | Solo vs CPU, or 1-v-1 duels in rooms | Illustrated portraits of 63 Bible characters; each board shows 24. Players take turns: ask a question from the list or type your own, and **your opponent answers Yes/No**. That includes the computer's questions in solo mode. A double-check warns if an answer seems to contradict the character card. Guess on your turn, but a wrong guess loses. With more than two players, everyone is paired into duels. |
 | 🎭 **Who Am I?** | Solo / room | 56 figures. Clues are revealed one at a time, and fewer clues earn more points. Answers are typed and small typos are accepted. |
 | 🎵 **Guess the Song** | Solo / room | 83 modern songs from Nigeria, Ghana, Kenya, Tanzania, Uganda, South Africa, the USA, UK, Australia, Canada, Mexico and Brazil. Rounds include emoji songs, *who sings it*, *which country*, **Hum That Hymn** (public-domain tunes synthesised in the browser) and *Praise in Many Tongues* (Imela, Medaase, Asante, Ngiyabonga…). |
 | ✍️ **Finish the Line** | Solo / room | KJV verses, classic hymns, spirituals and African choruses (Siyahamba, Thuma Mina). |

@@ -5,7 +5,7 @@
 
 FP.MODES = {
   sketch: { title: 'Sketch & Guess', icon: '🎨', hue: '#f59e0b', kind: 'sketch', group: 'party', desc: 'Take turns drawing Bible stories, people & church life while everyone races to guess.', tags: ['2–12 players'], defaults: { rounds: 3, time: 80 } },
-  guesswho: { title: 'Bible Guess Who', icon: '🕵️', hue: '#3b82f6', kind: 'gw', group: 'party', desc: 'Ask yes/no questions and flip down tiles to find the secret Bible character.', tags: ['Solo vs CPU', 'Room race'], defaults: { rounds: 3, time: 180 } },
+  guesswho: { title: 'Bible Guess Who', icon: '🕵️', hue: '#3b82f6', kind: 'gw', group: 'party', desc: 'Classic Guess Who with illustrated Bible characters. Take turns asking yes/no questions — your opponent answers — until someone guesses.', tags: ['Solo vs CPU', '1-v-1 duels'], defaults: { rounds: 3, time: 60 } },
   whoami: { title: 'Who Am I?', icon: '🎭', hue: '#a855f7', kind: 'quiz', group: 'quiz', desc: 'Clues appear one by one. Type the Bible figure — fewer clues, more points.', tags: ['Typed answers'], defaults: { diff: 'medium', rounds: 8, time: 45 } },
   song: { title: 'Guess the Song', icon: '🎵', hue: '#ec4899', kind: 'quiz', group: 'quiz', desc: 'Emoji songs, hum-that-hymn, who sings it & where it\'s from — African gospel to worldwide worship.', tags: ['Music', 'Global'], defaults: { diff: 'medium', rounds: 10, time: 20 } },
   lyrics: { title: 'Finish the Line', icon: '✍️', hue: '#f43f5e', kind: 'quiz', group: 'quiz', desc: 'Complete famous verses, classic hymns, spirituals and African choruses.', tags: ['Scripture', 'Hymns'], defaults: { diff: 'medium', rounds: 10, time: 20 } },

@@ -153,3 +153,31 @@ FP.WHOAMI = [
   { a: 'Caleb', clues: ['I was a Kenizzite from the tribe of Judah.', 'At 85 I said I was still as strong as at 40.', 'I asked for the hill country of Hebron.', 'With Joshua, I gave a good report about the Promised Land.'] },
   { a: 'Anna', clues: ['I was from the tribe of Asher.', 'I was widowed after seven years of marriage.', 'I served God with fasting and prayer night and day.', 'I was an elderly prophetess who saw baby Jesus in the temple.'] },
 ];
+
+// Portrait looks for the illustrated Guess Who tiles:
+// age (y young · a adult · o old) | headwear | hair | facial hair | robe colour
+// headwear: crown tiara mitre turban hood veil headband helmet none · hair: short long curly bald
+// facial: longbeard beard stubble none · robe 'rainbow' = coat of many colours
+FP.CHAR_LOOK = {
+  adam: 'a none short beard #7cb342', eve: 'a none long none #8bc34a', abel: 'y headband short stubble #a1887f',
+  noah: 'o hood short longbeard #795548', abraham: 'o turban short longbeard #8d6e63', sarah: 'o veil long none #bcaaa4',
+  melchizedek: 'o crown short longbeard #6a1b9a', isaac: 'a turban short beard #a1887f', rebekah: 'a veil long none #ef6c00',
+  jacob: 'a headband short beard #5d4037', rachel: 'y veil long none #ec407a', josephot: 'y none short stubble rainbow',
+  job: 'o turban short longbeard #9e9e9e', moses: 'o hood short longbeard #c62828', aaron: 'o mitre short longbeard #1565c0',
+  miriam: 'a veil long none #00897b', joshua: 'a helmet short beard #455a64', caleb: 'o helmet short longbeard #6d4c41',
+  rahab: 'a veil long none #d32f2f', deborah: 'a veil long none #2e7d32', gideon: 'y helmet short stubble #8d6e63',
+  samson: 'y none long beard #6d4c41', ruth: 'y veil long none #f9a825', naomi: 'o veil long none #8d6e63',
+  boaz: 'a turban short beard #4e342e', hannah: 'a veil long none #7e57c2', samuel: 'o hood short longbeard #3949ab',
+  saul: 'a crown short beard #b71c1c', david: 'y crown curly stubble #1e88e5', solomon: 'a crown short beard #6a1b9a',
+  elijah: 'o hood curly longbeard #5d4037', elisha: 'a none bald beard #795548', jezebel: 'a tiara long none #880e4f',
+  isaiah: 'o turban short longbeard #283593', jeremiah: 'a hood short beard #546e7a', daniel: 'y turban short stubble #f57c00',
+  jonah: 'a none short beard #0277bd', esther: 'y tiara long none #ab47bc', nehemiah: 'a turban short beard #6d4c41',
+  mary: 'y veil long none #1e88e5', josephnt: 'a headband short beard #8d6e63', elizabeth: 'o veil long none #a1887f',
+  zechariah: 'o mitre short longbeard #f9a825', anna: 'o veil long none #9575cd', johnbaptist: 'a none curly beard #a1662f',
+  peter: 'a headband curly beard #0288d1', andrew: 'a headband short beard #43a047', james: 'a headband short beard #e53935',
+  john: 'y none short none #fb8c00', matthew: 'a turban short beard #fbc02d', thomas: 'a none short beard #607d8b',
+  judas: 'a hood short beard #424242', marymagdalene: 'y veil long none #c2185b', martha: 'a veil long none #ff7043',
+  lazarus: 'a none short beard #e0e0e0', zacchaeus: 'a turban short beard #ffb300', nicodemus: 'o turban short longbeard #37474f',
+  stephen: 'y none curly stubble #26a69a', paul: 'a none bald beard #8d6e63', barnabas: 'a none curly beard #5c6bc0',
+  timothy: 'y none short none #29b6f6', lydia: 'a veil long none #7b1fa2', priscilla: 'a veil long none #00838f',
+};

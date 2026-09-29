@@ -103,6 +103,10 @@ class Room {
         if (Array.isArray(m.words)) this.skChoices = { words: m.words.slice(0, 3).map((w) => FP.cleanText(String(w), 40)), cats: (Array.isArray(m.cats) ? m.cats : []).slice(0, 3).map((c) => FP.cleanText(String(c), 30)) };
         this.view && this.view.onMsg && this.view.onMsg(m);
         break;
+      case 'gw_secret':
+        if (FP.clampInt(m.round, 1, 99) != null && typeof m.id === 'string' && FP.charById(m.id)) this.gwSecret = { round: m.round, id: m.id };
+        this.view && this.view.onMsg && this.view.onMsg(m);
+        break;
       case 'sk_word':
         this.skWord = FP.cleanText(String(m.word || ''), 40);
         this.view && this.view.onMsg && this.view.onMsg(m);
@@ -163,7 +167,13 @@ class Room {
       if (g) {
         if (g.kind === 'quiz' && g.answered.includes(p.id)) { badge = '✔'; done = true; }
         if (g.kind === 'sketch') { if (g.drawer === p.id) badge = '✏️'; else if (g.guessed.includes(p.id)) { badge = '✔'; done = true; } }
-        if (g.kind === 'gw') { if (g.done[p.id] === true) { badge = '🎯'; done = true; } else if (g.done[p.id] === false) badge = '✘'; else if (g.asked[p.id]) badge = g.asked[p.id] + '?'; }
+        if (g.kind === 'gw') {
+          const mt = (g.matches || []).find((x) => x.a === p.id || x.b === p.id);
+          if (!mt) badge = '👀';
+          else if (mt.winner) { if (mt.winner === p.id) { badge = '🏆'; done = true; } else badge = '✘'; }
+          else if (mt.turn === p.id) badge = mt.step === 'ask' ? '💬' : '⏳';
+          else if (mt.step === 'answer') badge = '🤔';
+        }
       }
       this.playersEl.append(h('div', { class: 'player' + (p.id === this.me ? ' me' : '') + (done ? ' done' : '') },
         h('span', { class: 'rank', text: String(i + 1) }),

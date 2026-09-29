@@ -37,7 +37,8 @@ FP.CLIENT_SCHEMA = {
   lock: (m) => typeof m.on === 'boolean',
   pick: (m) => Number.isInteger(m.i),
   draw: (m) => FP.isObj(m.op),
-  gw_ask: (m) => str(m.k, 20),
+  gw_ask: (m) => (m.k === undefined || str(m.k, 20)) && (m.text === undefined || str(m.text, 160)) && (m.k !== undefined || m.text !== undefined),
+  gw_reply: (m) => typeof m.a === 'boolean',
   gw_guess: (m) => str(m.id, 30),
 };
 function validClientMsg(d) {

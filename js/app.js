@@ -11,6 +11,24 @@ const profile = {
   save() { FP.store.set('name', this.name); FP.store.set('avatar', this.avatar); },
 };
 profile.save();
+let profileTimer = null;
+// Tell the current room about a new name/avatar (the server already accepts 'profile').
+function syncProfile() {
+  clearTimeout(profileTimer);
+  profileTimer = setTimeout(() => {
+    if (FP.room && !FP.room.dead && FP.room.role !== 'solo') FP.room.send({ t: 'profile', name: profile.name, avatar: profile.avatar });
+  }, 400);
+}
+// Leave the current room for real. Hosts are warned that it closes the room for everyone.
+function leaveRoom() {
+  const r = FP.room;
+  if (r && !r.dead && r.role === 'host' && r.players.length > 1 &&
+      !confirm('You are the host — leaving closes this room for everyone. Leave anyway?')) return false;
+  if (r) r.destroy();
+  location.hash = '#/';
+  return true;
+}
+FP.leaveRoom = leaveRoom;
 
 /* ---------------- page lifecycle ---------------- */
 let leaveHooks = [];
@@ -124,7 +142,7 @@ class Room {
       h('div', { class: 'row between' }, h('span', { class: 'lbl', style: { margin: 0 }, text: 'Room code' }), h('span', { class: 'room-code', text: this.code })),
       h('div', { class: 'invite' }, h('code', { text: url }), h('button', { class: 'btn btn-sm btn-primary', type: 'button', onclick: () => FP.share('Join my Hallelujoy room!', url) }, 'Invite')));
     const chatCard = h('aside', { class: 'card side chat' }, invite, h('h3', { class: 'mb', text: 'Chat' }), this.feed, form,
-      h('button', { class: 'btn btn-ghost btn-sm mt', type: 'button', onclick: () => { location.hash = '#/'; } }, '← Leave room'));
+      h('button', { class: 'btn btn-ghost btn-sm mt', type: 'button', onclick: leaveRoom }, '← Leave room'));
     this.el = h('div', { class: 'room' }, playersCard, stageCard, chatCard);
     root.append(this.el);
     // Messages may have arrived before the layout existed (host's own hello/state).
@@ -151,6 +169,11 @@ class Room {
         h('span', { class: 'rank', text: String(i + 1) }),
         h('span', { class: 'av', text: p.avatar }),
         h('span', { class: 'nm', text: p.name + (p.id === this.me ? ' (you)' : '') }),
+        p.id === this.me ? h('button', { class: 'kick', type: 'button', title: 'Change your name', 'aria-label': 'Change your name', onclick: () => {
+          const v = prompt('Your name:', profile.name);
+          if (v == null) return;
+          profile.name = FP.cleanName(v); profile.save(); syncProfile();
+        } }, '✏️') : null,
         p.host ? h('span', { class: 'badge', title: 'Host', text: '👑' }) : null,
         badge ? h('span', { class: 'badge', text: badge }) : null,
         h('span', { class: 'pts', text: String(p.score) }),
@@ -340,12 +363,16 @@ function gameCard(k) {
 function openGame(k) {
   const m = FP.MODES[k];
   if (m.kind === 'puzzle') { location.hash = '#/p/' + k; return; }
-  if (FP.room && FP.room.role === 'host' && FP.room.isHost) {
-    FP.room.send({ t: 'settings', s: { mode: k } });
-    location.hash = '#/r/' + FP.room.code;
+  let close;
+  if (FP.room && !FP.room.dead && FP.room.role === 'host' && FP.room.isHost) {
+    const code = FP.room.code;
+    close = FP.modal(h('div', { class: 'stack' },
+      h('div', { class: 'row' }, h('div', { class: 'game-icon', style: { '--hue': m.hue }, text: m.icon }), h('h2', { text: m.title })),
+      h('p', { class: 'muted', text: 'You\'re hosting room ' + code + '. Play this game there, or leave the room first.' }),
+      h('button', { class: 'btn btn-primary btn-lg', type: 'button', onclick: () => { close(); FP.room.send({ t: 'settings', s: { mode: k } }); location.hash = '#/r/' + code; } }, '👥 Play it in room ' + code),
+      h('button', { class: 'btn btn-lg', type: 'button', onclick: () => { close(); if (leaveRoom()) setTimeout(() => openGame(k), 0); } }, 'Leave room ' + code + ' first')));
     return;
   }
-  let close;
   const link = (href, cls, text) => h('a', { class: 'btn btn-lg ' + cls, href, onclick: () => close && close() }, text);
   if (k === 'sketch') {
     close = FP.modal(h('div', { class: 'stack' }, h('div', { class: 'big-emoji', text: '🎨' }), h('h2', { text: 'Sketch & Guess is multiplayer' }),
@@ -366,11 +393,11 @@ let pendingMode = null;
 function renderHome() {
   FP.clear(app);
   const nameIn = h('input', { class: 'input', maxlength: '16', value: profile.name, 'aria-label': 'Your name', autocomplete: 'nickname' });
-  nameIn.addEventListener('input', () => { profile.name = FP.cleanName(nameIn.value); profile.save(); });
+  nameIn.addEventListener('input', () => { profile.name = FP.cleanName(nameIn.value); profile.save(); syncProfile(); });
   const avGrid = h('div', { class: 'avatar-grid' });
   const paintAv = () => {
     FP.clear(avGrid);
-    FP.AVATARS.forEach((a) => avGrid.append(h('button', { type: 'button', class: 'avatar-opt' + (a === profile.avatar ? ' on' : ''), 'aria-label': 'Avatar ' + a, onclick: () => { profile.avatar = a; profile.save(); paintAv(); } }, a)));
+    FP.AVATARS.forEach((a) => avGrid.append(h('button', { type: 'button', class: 'avatar-opt' + (a === profile.avatar ? ' on' : ''), 'aria-label': 'Avatar ' + a, onclick: () => { profile.avatar = a; profile.save(); paintAv(); syncProfile(); } }, a)));
   };
   paintAv();
   const codeIn = h('input', { class: 'input code', maxlength: '6', placeholder: 'CODE', 'aria-label': 'Room code', autocomplete: 'off' });
@@ -396,7 +423,11 @@ function renderHome() {
     h('div', { class: 'card stack' },
       h('div', null, h('label', { class: 'lbl', text: 'Your name' }), nameIn),
       h('div', null, h('label', { class: 'lbl', text: 'Avatar' }), avGrid),
-      inRoom ? h('a', { class: 'btn btn-primary btn-lg btn-block', href: '#/r/' + FP.room.code }, '↩ Back to room ' + FP.room.code)
+      inRoom ? h('div', { class: 'stack', style: { gap: '8px' } },
+        h('div', { class: 'small muted center', text: 'You\'re still in room ' + FP.room.code + (FP.room.role === 'host' ? ' (as host)' : '') }),
+        h('div', { class: 'row', style: { flexWrap: 'nowrap' } },
+          h('a', { class: 'btn btn-primary grow', href: '#/r/' + FP.room.code }, '↩ Back to room'),
+          h('button', { class: 'btn btn-danger', type: 'button', onclick: () => { if (leaveRoom()) renderHome(); } }, 'Leave room')))
         : h('button', { class: 'btn btn-primary btn-lg btn-block', type: 'button', onclick: () => { pendingMode = null; hostRoom(); } }, '👥 Create a room'),
       h('div', { class: 'divider', text: 'OR JOIN WITH A CODE' }),
       h('div', { class: 'row', style: { flexWrap: 'nowrap' } }, codeIn, h('button', { class: 'btn', type: 'button', onclick: join }, 'Join'))));

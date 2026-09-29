@@ -74,11 +74,14 @@ class Server {
     if (!p) return;
     const host = this.isHost(pid);
     switch (m.t) {
-      case 'profile':
+      case 'profile': {
+        const old = p.name;
         p.name = this.uniqueName(FP.cleanName(m.name), pid);
         p.avatar = FP.cleanAvatar(m.avatar);
+        if (old !== p.name && !this.solo) this.sys(old + ' is now ' + p.name);
         this.pushPlayers();
         break;
+      }
       case 'chat': this.chat(pid, m.text); break;
       case 'settings': if (host && this.phase !== 'playing') this.applySettings(m.s); break;
       case 'start': if (host) this.startGame(); break;

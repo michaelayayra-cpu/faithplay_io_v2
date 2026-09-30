@@ -10,7 +10,7 @@ FP.MODES = {
   song: { title: 'Guess the Song', icon: '🎵', hue: '#ec4899', kind: 'quiz', group: 'quiz', desc: 'Emoji songs, hum-that-hymn, who sings it & where it\'s from — African gospel to worldwide worship.', tags: ['Music', 'Global'], defaults: { diff: 'medium', rounds: 10, time: 20 } },
   lyrics: { title: 'Finish the Line', icon: '✍️', hue: '#f43f5e', kind: 'quiz', group: 'quiz', desc: 'Complete famous verses, classic hymns, spirituals and African choruses.', tags: ['Scripture', 'Hymns'], defaults: { diff: 'medium', rounds: 10, time: 20 } },
   trivia: { title: 'Bible Trivia', icon: '📖', hue: '#6c4cf1', kind: 'quiz', group: 'quiz', desc: 'Fast multiple-choice and true/false questions across both Testaments, Africa & church history.', tags: ['200+ questions'], defaults: { diff: 'medium', rounds: 10, time: 20, cat: 'all' } },
-  whosaid: { title: 'Who Said It?', icon: '💬', hue: '#0ea5e9', kind: 'quiz', group: 'quiz', desc: 'Famous words from the King James Bible — can you name the speaker?', tags: ['KJV quotes'], defaults: { diff: 'medium', rounds: 10, time: 20 } },
+  whosaid: { title: 'Who Said It?', icon: '💬', hue: '#0ea5e9', kind: 'quiz', group: 'quiz', desc: 'Famous words from the Bible (NKJV) — can you name the speaker?', tags: ['NKJV quotes'], defaults: { diff: 'medium', rounds: 10, time: 20 } },
   scramble: { title: 'Scripture Scramble', icon: '🔀', hue: '#14b8a6', kind: 'quiz', group: 'quiz', desc: 'Unscramble books, people, places and faith words before the letters give it away.', tags: ['Typed answers'], defaults: { diff: 'medium', rounds: 10, time: 30 } },
   mix: { title: 'Revival Mix', icon: '🎲', hue: '#22c55e', kind: 'quiz', group: 'quiz', desc: 'A bit of everything — trivia, songs, quotes, clues and scrambles shuffled together.', tags: ['Variety'], defaults: { diff: 'medium', rounds: 12, time: 20 } },
   logic: { title: 'Clue Chain Grid', icon: '🧩', hue: '#8b5cf6', kind: 'puzzle', group: 'puzzle', desc: 'Sporcle-style click grid: solve one box to reveal a clue to the next — Bible people, places, objects & books.', tags: ['3 levels', 'Shareable'], defaults: { diff: 'medium', rounds: 1, time: 300 } },
@@ -38,12 +38,12 @@ const LEVELS = {
     3: ['Noah took seven pairs', 'The book of Esther', 'The word "Trinity"', 'Joseph was sold for twenty', 'Rahab hid the spies', 'Solomon had 700', 'Goliath came from Gath', 'The Bible mentions brothers', 'Zacchaeus climbed'],
   },
   quotes: {
-    1: ['Let there be light', 'Am I my brother', 'Whither thou goest', 'The LORD is my shepherd', 'Here am I; send me', 'Behold the Lamb', 'I am the way', 'It is finished', 'Suffer little children', 'My Lord and my God', 'What is truth', 'Who is this uncircumcised', 'I know not the man', 'Thou art the Christ'],
-    3: ['Almost thou persuadest', 'Sirs, what must I do', 'Can there any good', 'Lord, by this time', 'Rabboni', 'Woe is me', 'Salvation is of the LORD', 'Let me die with', 'Who knoweth whether', 'Understandest thou', 'Lord, lay not', 'Who art thou, Lord', 'Let us also go', 'How long halt ye', 'Am I a dog'],
+    1: ['Let there be light', 'Am I my brother', 'Wherever you go', 'The LORD is my shepherd', 'Here am I! Send me', 'Behold! The Lamb', 'I am the way', 'It is finished', 'Let the little children', 'My Lord and my God', 'What is truth', 'Who is this uncircumcised', 'I do not know the Man', 'You are the Christ'],
+    3: ['You almost persuade', 'Sirs, what must I do', 'Can anything good', 'Lord, by this time', 'Rabboni', 'Woe is me', 'Salvation is of the LORD', 'Let me die with', 'Who knows whether', 'Do you understand what', 'Lord, do not charge', 'Who are You, Lord', 'Let us also go', 'How long will you falter', 'Am I a dog'],
   },
   lyrics: {
-    1: ['For God so loved', 'The LORD is my shepherd', 'In the beginning God', 'I can do all things', 'Amazing grace!', 'I once was lost', 'Jesus loves me!', 'Little ones to Him', 'This little light', 'He\'s got the whole', 'Joy to the world', 'Silent night', 'Give us this day', 'Ye are the ___ of', 'Ye are the light', 'I am the way', 'Rejoice in the Lord', 'Be still', 'Swing low', 'Go, tell it', 'Pray without', 'O come, all ye'],
-    3: ['A mighty fortress', 'All hail the power', 'Abide with me', 'When peace, like', 'Leaning, leaning', 'Just as I am', 'Casting all your', 'For where two or three', 'Faith is the substance', 'A soft answer', 'He hath made every', 'The name of the LORD', 'Thuma Mina', '"Kum ba yah"', 'Charity suffereth', 'Blessed assurance', 'Crown Him', 'Pass me not', 'Trust and obey', 'I surrender all', 'Standing on the', 'When the roll is called', 'Delight thyself', 'Be Thou my', 'Were you there', 'Steal away'],
+    1: ['For God so loved', 'The LORD is my shepherd', 'In the beginning God', 'I can do all things', 'Amazing grace!', 'I once was lost', 'Jesus loves me!', 'Little ones to Him', 'This little light', 'He\'s got the whole', 'Joy to the world', 'Silent night', 'Give us this day', 'You are the ___ of', 'You are the light', 'I am the way', 'Rejoice in the Lord', 'Be still', 'Swing low', 'Go, tell it', 'Pray without', 'O come, all ye'],
+    3: ['A mighty fortress', 'All hail the power', 'Abide with me', 'When peace, like', 'Leaning, leaning', 'Just as I am', 'Casting all your', 'For where two or three', 'Now faith is the substance', 'A soft answer', 'He has made every', 'The name of the LORD', 'Thuma Mina', '"Kum ba yah"', 'Love suffers long', 'Blessed assurance', 'Crown Him', 'Pass me not', 'Trust and obey', 'I surrender all', 'Standing on the', 'When the roll is called', 'Delight yourself', 'Be Thou my', 'Were you there', 'Steal away'],
   },
   whoami: {
     1: ['Moses', 'Noah', 'David', 'Jonah', 'Daniel', 'Adam', 'Eve', 'Peter', 'Paul', 'Mary', 'Zacchaeus', 'Goliath', 'Lazarus', 'Samson', 'Esther', 'Joseph', 'Abraham', 'Judas Iscariot', 'John the Baptist', 'Solomon', 'Ruth', 'Thomas', 'Jacob', 'Pontius Pilate', 'Herod'],
@@ -92,7 +92,7 @@ FP.GEN = {
     const speakers = FP.QUOTES.map((q) => q[1]);
     const pool = FP.QUOTES.map((q) => ({ q, id: 'q' + FP.hashStr(q[0]), lv: levelOf('quotes', q[0]) }));
     return FP.pickFresh('whosaid', byDiff(pool, diff, n), n, (x) => x.id, rnd).map(({ q }) =>
-      mcq('“' + q[0] + '”', q[1], rnd() < 0.7 ? q.slice(2, 5) : otherValues(speakers, q[1], 3, rnd), { sub: 'Who said it?', cat: 'Who Said It', explain: q[5] + ' (KJV)' }, rnd, diff));
+      mcq('“' + q[0] + '”', q[1], rnd() < 0.7 ? q.slice(2, 5) : otherValues(speakers, q[1], 3, rnd), { sub: 'Who said it?', cat: 'Who Said It', explain: q[5] + ' (NKJV)' }, rnd, diff));
   },
   lyrics(n, rnd, s = {}) {
     const diff = dOf(s);

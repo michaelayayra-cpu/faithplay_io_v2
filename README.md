@@ -10,9 +10,9 @@
 | 🕵️ **Bible Guess Who** | Solo vs CPU, or 1-v-1 duels in rooms | Illustrated portraits of 63 Bible characters; each board shows 24. Players take turns: ask a question from the list or type your own, and **your opponent answers Yes/No**. That includes the computer's questions in solo mode. A double-check warns if an answer seems to contradict the character card. Guess on your turn, but a wrong guess loses. With more than two players, everyone is paired into duels. |
 | 🎭 **Who Am I?** | Solo / room | 56 figures. Clues are revealed one at a time, and fewer clues earn more points. Answers are typed and small typos are accepted. |
 | 🎵 **Guess the Song** | Solo / room | 83 modern songs from Nigeria, Ghana, Kenya, Tanzania, Uganda, South Africa, the USA, UK, Australia, Canada, Mexico and Brazil. Rounds include emoji songs, *who sings it*, *which country*, **Hum That Hymn** (public-domain tunes synthesised in the browser) and *Praise in Many Tongues* (Imela, Medaase, Asante, Ngiyabonga…). |
-| ✍️ **Finish the Line** | Solo / room | KJV verses, classic hymns, spirituals and African choruses (Siyahamba, Thuma Mina). |
+| ✍️ **Finish the Line** | Solo / room | NKJV verses, classic hymns, spirituals and African choruses (Siyahamba, Thuma Mina). |
 | 📖 **Bible Trivia** | Solo / room | 210 questions (multiple choice plus true/false) across the Old and New Testaments, Bible basics, *Africa & the Bible* and church history. You can filter by category. |
-| 💬 **Who Said It?** | Solo / room | 48 KJV quotes. |
+| 💬 **Who Said It?** | Solo / room | 48 NKJV quotes. |
 | 🔀 **Scripture Scramble** | Solo / room | 149 words. Letter hints appear as the timer runs down. |
 | 🎲 **Revival Mix** | Solo / room | A random mix of all the quiz types. |
 | 🧩 **Clue Chain Grid** | Solo, shareable, room race | Sporcle click-grid style. One box starts solved and every solved box gives a clue to another box ("Directly below me is my older sister"). You click that box and name the Bible person, place, object or book. Grids are 3×3 (easy), 4×4 (medium) or 5×5 (hard). Two clue styles: **Chain** (every box gives one clue) or **Branching** (some boxes give 2–3 clues for different boxes, so several are open at once and you solve them in any order). |
@@ -33,7 +33,11 @@
 
 **Keeping it fresh:** the game remembers which questions you've seen recently (in your browser) and shows new ones first. Guess Who boards, logic puzzles, Connections and Order It are generated randomly each time, so they can go on indefinitely.
 
-**Copyright:** no copyrighted lyrics are included. Modern songs are quizzed only by title, artist, country and emoji. The "finish the line" rounds use only the public-domain KJV, public-domain hymns and traditional songs.
+**Copyright:** no copyrighted lyrics are included. Modern songs are quizzed only by title, artist, country and emoji. The "finish the line" rounds use only Scripture, public-domain hymns and traditional songs.
+
+**Bible version:** Scripture is quoted from the **New King James Version (NKJV)**, about 100 verses in total. Thomas Nelson lets you quote up to 500 NKJV verses without written permission, as long as the quotes don't make up a whole book of the Bible and the notice below is shown (it's in the site footer):
+
+> Scripture taken from the New King James Version®. Copyright © 1982 by Thomas Nelson. Used by permission. All rights reserved.
 
 ## Shareable links
 

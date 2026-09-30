@@ -1,0 +1,636 @@
+/* Authoritative game server — runs ONLY in the host's browser (or locally for solo play).
+   Clients never receive answers before a reveal, and scores are computed here only. */
+'use strict';
+(() => {
+
+FP.SK = {
+  W: 800, H: 600,
+  PALETTE: ['#111111', '#ffffff', '#7f7f7f', '#c1c1c1', '#e11d48', '#f97316', '#facc15', '#22c55e', '#14b8a6', '#3b82f6',
+    '#6c4cf1', '#a855f7', '#ec4899', '#8b4513', '#fcd9b6', '#0f766e', '#1e3a8a', '#7f1d1d', '#fde68a', '#bbf7d0'],
+  SIZES: [3, 7, 14, 28],
+};
+// Validate a drawing op (used by server AND clients — the host could be untrusted too).
+FP.validDrawOp = function (op) {
+  if (!FP.isObj(op)) return null;
+  const P = FP.SK.PALETTE.length;
+  if (op.k === 'line') {
+    if (FP.clampInt(op.g, 0, 1e7) == null || FP.clampInt(op.c, 0, P - 1) == null || FP.clampInt(op.s, 0, FP.SK.SIZES.length - 1) == null) return null;
+    if (!Array.isArray(op.p) || op.p.length < 2 || op.p.length > 400 || op.p.length % 2) return null;
+    for (let i = 0; i < op.p.length; i++) { if (FP.clampInt(op.p[i], 0, i % 2 ? FP.SK.H : FP.SK.W) == null) return null; }
+    return { k: 'line', g: op.g, c: op.c, s: op.s, p: op.p.slice() };
+  }
+  if (op.k === 'fill') {
+    if (FP.clampInt(op.c, 0, P - 1) == null || FP.clampInt(op.x, 0, FP.SK.W) == null || FP.clampInt(op.y, 0, FP.SK.H) == null) return null;
+    return { k: 'fill', c: op.c, x: op.x, y: op.y };
+  }
+  if (op.k === 'clear' || op.k === 'undo') return { k: op.k };
+  return null;
+};
+
+class Server {
+  constructor(tx, { code = null, solo = false } = {}) {
+    this.tx = tx;
+    this.code = code;
+    this.solo = solo;
+    this.hostId = tx.selfId;
+    this.players = new Map();
+    this.mode = 'trivia';
+    this.settings = Object.assign({}, FP.MODES.trivia.defaults);
+    this.phase = 'lobby';
+    this.engine = null;
+    this.results = null;
+    this.locked = false;
+    tx.onClientMessage = (pid, m) => { try { this.onMessage(pid, m); } catch (e) { console.error(e); } };
+    tx.onLeave = (pid) => this.onLeave(pid);
+    tx.onJoin = () => {};
+  }
+
+  /* ---------- helpers ---------- */
+  name(pid) { const p = this.players.get(pid); return p ? p.name : 'Someone'; }
+  isHost(pid) { return pid === this.hostId; }
+  sendTo(pid, m) { this.tx.sendTo(pid, m); }
+  broadcast(m, except) { this.tx.broadcast(m, except); }
+  sys(text, kind = 'sys') { this.broadcast({ t: 'chat', kind, text }); }
+  addScore(pid, pts) { const p = this.players.get(pid); if (p) p.score += pts; }
+  playerList() {
+    return [...this.players.values()].map((p) => ({ id: p.id, name: p.name, avatar: p.avatar, score: p.score, host: p.id === this.hostId }));
+  }
+  pushPlayers() { this.broadcast({ t: 'players', list: this.playerList(), host: this.hostId }); }
+  stateMsg() {
+    return { t: 'state', phase: this.phase, mode: this.mode, settings: this.settings, locked: this.locked, solo: this.solo, results: this.results, game: this.engine ? this.engine.publicState() : null };
+  }
+  pushState() { this.broadcast(this.stateMsg()); }
+  uniqueName(name, pid) {
+    let n = name; let i = 2;
+    const taken = () => [...this.players.values()].some((p) => p.id !== pid && p.name.toLowerCase() === n.toLowerCase());
+    while (taken()) n = name.slice(0, 13) + ' ' + i++;
+    return n;
+  }
+
+  /* ---------- inbound ---------- */
+  onMessage(pid, m) {
+    if (m.t === 'hello') return this.hello(pid, m);
+    const p = this.players.get(pid);
+    if (!p) return;
+    const host = this.isHost(pid);
+    switch (m.t) {
+      case 'profile': {
+        const old = p.name;
+        p.name = this.uniqueName(FP.cleanName(m.name), pid);
+        p.avatar = FP.cleanAvatar(m.avatar);
+        if (old !== p.name && !this.solo) this.sys(old + ' is now ' + p.name);
+        this.pushPlayers();
+        break;
+      }
+      case 'chat': this.chat(pid, m.text); break;
+      case 'settings': if (host && this.phase !== 'playing') this.applySettings(m.s); break;
+      case 'start': if (host) this.startGame(); break;
+      case 'lobby': if (host) this.toLobby(); break;
+      case 'lock': if (host && !this.solo) { this.locked = m.on; this.tx.locked = m.on; this.pushState(); this.sys(m.on ? 'The host locked the room 🔒' : 'The room is open again 🔓'); } break;
+      case 'kick': if (host && m.id !== this.hostId && this.players.has(m.id)) this.tx.kick(m.id); break;
+      default: if (this.engine && this.phase === 'playing') this.engine.onMessage(pid, m);
+    }
+  }
+  hello(pid, m) {
+    if (this.players.has(pid)) return;
+    if (this.players.size >= FP.MAX_PLAYERS) return this.tx.kick(pid, 'This room is full.');
+    const p = { id: pid, name: this.uniqueName(FP.cleanName(m.name), pid), avatar: FP.cleanAvatar(m.avatar), score: 0 };
+    this.players.set(pid, p);
+    this.sendTo(pid, { t: 'welcome', you: pid, host: this.hostId, code: this.code });
+    this.pushPlayers();
+    this.sendTo(pid, this.stateMsg());
+    if (!this.solo) this.sys(p.name + ' joined the room 👋');
+    if (this.engine) this.engine.onJoin(pid);
+  }
+  onLeave(pid) {
+    const p = this.players.get(pid);
+    if (!p) return;
+    this.players.delete(pid);
+    this.sys(p.name + ' left the room');
+    if (this.engine) {
+      this.engine.onLeave(pid);
+      if (this.phase === 'playing' && this.players.size < this.engine.minPlayers) {
+        this.sys('Not enough players to continue — back to the lobby.');
+        this.toLobby();
+      }
+    }
+    this.pushPlayers();
+  }
+  chat(pid, raw) {
+    const text = FP.cleanText(raw, 120);
+    if (!text) return;
+    if (this.engine && this.phase === 'playing' && this.engine.onChat(pid, text)) return;
+    this.broadcast({ t: 'chat', id: pid, name: this.name(pid), text });
+  }
+
+  /* ---------- game flow ---------- */
+  applySettings(s) {
+    if (typeof s.mode === 'string' && FP.ROOM_MODES.includes(s.mode) && s.mode !== this.mode) {
+      const keepDiff = this.settings.diff;
+      this.mode = s.mode;
+      this.settings = Object.assign({}, FP.MODES[s.mode].defaults);
+      if (keepDiff && this.settings.diff) this.settings.diff = keepDiff;
+    }
+    if (FP.DIFFS.includes(s.diff) && this.settings.diff) this.settings.diff = s.diff;
+    const kind = FP.MODES[this.mode].kind;
+    const R = kind === 'quiz' ? [3, 30] : [1, 6];
+    const T = kind === 'sketch' ? [30, 180] : kind === 'gw' ? [20, 180] : kind === 'puzzle' ? [60, 900] : [10, 60];
+    if (Number.isInteger(s.rounds)) this.settings.rounds = Math.min(R[1], Math.max(R[0], s.rounds));
+    if (Number.isInteger(s.time)) this.settings.time = Math.min(T[1], Math.max(T[0], s.time));
+    if (this.mode === 'trivia' && FP.TRIVIA_CATS.includes(s.cat)) this.settings.cat = s.cat;
+    if (this.phase === 'end') { this.phase = 'lobby'; this.results = null; }
+    this.pushState();
+  }
+  startGame() {
+    const def = FP.MODES[this.mode];
+    const Engine = def.kind === 'sketch' ? SketchEngine : def.kind === 'gw' ? GuessWhoEngine : def.kind === 'puzzle' ? FP.PuzzleEngine : QuizEngine;
+    const eng = new Engine(this);
+    if (this.players.size < eng.minPlayers) {
+      this.sendTo(this.hostId, { t: 'chat', kind: 'sys', text: def.title + ' needs at least ' + eng.minPlayers + ' players. Share the invite link!' });
+      return;
+    }
+    if (this.engine) this.engine.stop();
+    for (const p of this.players.values()) p.score = 0;
+    this.engine = eng;
+    this.phase = 'playing';
+    this.results = null;
+    this.pushPlayers();
+    this.engine.start();
+    if (!this.solo) this.sys('▶ ' + def.title + ' started!');
+  }
+  endGame() {
+    if (this.engine) this.engine.stop();
+    this.engine = null;
+    this.phase = 'end';
+    this.results = this.playerList().sort((a, b) => b.score - a.score);
+    this.pushPlayers();
+    this.pushState();
+  }
+  toLobby() {
+    if (this.engine) this.engine.stop();
+    this.engine = null;
+    this.phase = 'lobby';
+    this.results = null;
+    this.pushState();
+  }
+  stop() { if (this.engine) this.engine.stop(); this.engine = null; }
+}
+
+/* ======================================================================= */
+/* Quiz engine — trivia, songs, lyrics, quotes, who-am-i, scramble, mix     */
+/* ======================================================================= */
+class QuizEngine {
+  constructor(srv) { this.srv = srv; this.minPlayers = 1; this.timers = []; }
+  later(fn, ms) { this.timers.push(setTimeout(fn, ms)); }
+  clearTimers() { this.timers.forEach(clearTimeout); this.timers = []; }
+  start() {
+    const s = this.srv.settings;
+    this.qs = FP.GEN[this.srv.mode](s.rounds, FP.mathRng(), s);
+    this.queue = this.qs.map((_, i) => i);
+    this.finished = 0;
+    this.idx = -1;
+    this.next();
+  }
+  // Per-question memory survives a skip, so answers already given still count on the revisit.
+  mem(q) {
+    if (!q.st) q.st = { picks: new Map(), correct: new Set(), gained: new Map(), idk: new Set(), wrong: new Map(), visits: 0, shown: q.startClues || 1, mask: null, hints: 0 };
+    return q.st;
+  }
+  next() {
+    this.clearTimers();
+    if (!this.queue.length) return this.srv.endGame();
+    this.idx = this.queue.shift();
+    const q = (this.q = this.qs[this.idx]);
+    const st = (this.st = this.mem(q));
+    st.visits++;
+    this.skips = new Set();
+    this.phase = 'q';
+    const mult = FP.DIFF_TIME[this.srv.settings.diff] || 1;
+    const secs = q.kind === 'text' && this.srv.mode === 'mix' ? q.time : this.srv.settings.time;
+    this.dur = Math.round(secs * mult) * 1000;
+    this.t0 = Date.now();
+    this.deadline = this.t0 + this.dur;
+    if (q.kind === 'text') {
+      if (q.type === 'clues') {
+        const left = q.clues.length - st.shown;
+        const step = this.dur / (left + 1);
+        for (let k = 1; k <= left; k++) this.later(() => { st.shown = Math.min(q.clues.length, st.shown + 1); this.srv.pushState(); }, step * k);
+      } else {
+        const letters = q.answer.toUpperCase().split('');
+        if (!st.mask) {
+          st.mask = letters.map((ch) => (/[A-Z]/.test(ch) ? '_' : ch));
+          if (q.firstLetter) st.mask[0] = letters[0];
+        }
+        const reveal = () => {
+          const hidden = st.mask.map((c, i) => (c === '_' ? i : -1)).filter((x) => x >= 0);
+          if (hidden.length <= 2) return;
+          const i = hidden[Math.floor(Math.random() * hidden.length)];
+          st.mask[i] = letters[i];
+          st.hints++;
+          this.srv.pushState();
+        };
+        (q.hintAt || [0.35, 0.55, 0.75]).forEach((f) => this.later(reveal, this.dur * f));
+      }
+    }
+    this.later(() => this.finish(), this.dur);
+    this.srv.pushState();
+    if (this.everyoneDone()) this.finish();
+  }
+  frac() { return Math.max(0, Math.min(1, (this.deadline - Date.now()) / this.dur)); }
+  answered(pid) { return this.q.kind === 'mc' ? this.st.picks.has(pid) : this.st.correct.has(pid); }
+  isDone(pid) { return this.answered(pid) || this.st.idk.has(pid) || this.skips.has(pid); }
+  everyoneDone() { return this.srv.players.size > 0 && [...this.srv.players.keys()].every((pid) => this.isDone(pid)); }
+  publicState() {
+    const q = this.q; const st = this.st;
+    const pub = { kind: q.kind, type: q.type, prompt: q.prompt, sub: q.sub, cat: q.cat, emoji: q.emoji, melody: q.melody, bpm: q.bpm };
+    if (q.kind === 'mc') pub.choices = q.choices;
+    if (q.type === 'clues') { pub.clues = q.clues.slice(0, st.shown); pub.totalClues = q.clues.length; if (q.showLen) pub.len = q.answer.replace(/[^a-z]/gi, '').length; }
+    if (q.type === 'scramble') { pub.scramble = q.scramble; pub.mask = st.mask.join(' '); }
+    const done = [...this.srv.players.keys()].filter((pid) => this.isDone(pid));
+    const res = {
+      kind: 'quiz', phase: this.phase, num: this.phase === 'reveal' ? this.finished : this.finished + 1, n: this.qs.length, key: this.idx + ':' + st.visits,
+      dur: this.dur, remaining: Math.max(0, this.deadline - Date.now()),
+      revisit: st.visits > 1, waiting: this.queue.filter((i) => this.qs[i].st).length,
+      answered: done, prior: [...this.srv.players.keys()].filter((pid) => this.answered(pid) && st.visits > 1), skipped: [...this.skips], q: pub,
+    };
+    if (this.phase === 'reveal') {
+      // Who got it wrong (shown in red): wrong multiple-choice picks, or wrong typed guesses that never became right.
+      const wrong = {};
+      if (q.kind === 'mc') { for (const [pid, c] of st.picks) if (c !== q.correct) wrong[pid] = q.choices[c]; }
+      else { for (const [pid, g] of st.wrong) if (!st.correct.has(pid)) wrong[pid] = g; }
+      res.reveal = { answer: q.answer, correct: q.kind === 'mc' ? q.correct : null, explain: q.explain || null, picks: Object.fromEntries(st.picks), gained: Object.fromEntries(st.gained), idk: [...st.idk], wrong };
+    }
+    return res;
+  }
+  onMessage(pid, m) {
+    if (m.t === 'next' && this.srv.isHost(pid) && (this.phase === 'reveal' || this.phase === 'skipped')) return this.next();
+    if (this.phase !== 'q' || this.isDone(pid)) return;
+    if (m.t === 'skip') {
+      // First look only: on a revisit, "skip" means "I don't know".
+      if (this.st.visits > 1) this.st.idk.add(pid); else this.skips.add(pid);
+      this.srv.pushState();
+      if (this.everyoneDone()) this.finish();
+      return;
+    }
+    if (m.t === 'idk') {
+      this.st.idk.add(pid);
+      this.srv.pushState();
+      if (this.everyoneDone()) this.finish();
+      return;
+    }
+    if (m.t !== 'answer') return;
+    const q = this.q; const st = this.st;
+    if (q.kind === 'mc') {
+      const c = FP.clampInt(m.c, 0, q.choices.length - 1);
+      if (c == null) return;
+      st.picks.set(pid, c);
+      if (c === q.correct) {
+        const pts = 500 + Math.round(500 * this.frac());
+        this.srv.addScore(pid, pts);
+        st.gained.set(pid, pts);
+      }
+      this.srv.pushState();
+      if (this.everyoneDone()) this.finish();
+    } else {
+      if (typeof m.text !== 'string') return;
+      const text = FP.cleanText(m.text, 60);
+      if (!text) return;
+      const r = FP.checkAnswer(text, [q.answer, ...(q.acc || [])]);
+      if (r === 'yes') {
+        st.correct.add(pid);
+        let pts;
+        if (q.type === 'clues') pts = Math.round((1000 - 180 * (st.shown - 1)) * (0.55 + 0.45 * this.frac()));
+        else pts = Math.max(100, Math.round(300 + 700 * this.frac()) - 120 * st.hints);
+        this.srv.addScore(pid, pts);
+        st.gained.set(pid, pts);
+        this.srv.sendTo(pid, { t: 'you', ok: true, answer: q.answer, pts });
+        if (!this.srv.solo) this.srv.sys(this.srv.name(pid) + ' got it! +' + pts, 'good');
+        this.srv.pushPlayers();
+        this.srv.pushState();
+        if (this.everyoneDone()) this.finish();
+      } else if (r === 'close') {
+        this.srv.sendTo(pid, { t: 'chat', kind: 'close', text: '"' + text + '" is close!' });
+      } else {
+        this.srv.sendTo(pid, { t: 'you', ok: false });
+        st.wrong.set(pid, text);
+        if (!this.srv.solo) this.srv.broadcast({ t: 'chat', kind: 'wrong', id: pid, name: this.srv.name(pid), text });
+      }
+    }
+  }
+  onChat(pid, text) {
+    if (this.phase !== 'q' || this.q.kind !== 'text') return false;
+    if (this.st.correct.has(pid)) {
+      // Players who already know the answer can only talk to each other (no spoilers).
+      for (const id of this.st.correct) this.srv.sendTo(id, { t: 'chat', kind: 'secret', id: pid, name: this.srv.name(pid), text });
+      return true;
+    }
+    if (this.isDone(pid)) return false;
+    this.onMessage(pid, { t: 'answer', text });
+    return true;
+  }
+  // Time's up or everyone is done: park the question for later if someone skipped it, else reveal.
+  finish() {
+    if (this.phase !== 'q') return;
+    this.clearTimers();
+    if (this.skips.size && this.st.visits === 1) {
+      this.queue.push(this.idx);
+      this.phase = 'skipped';
+      this.srv.pushState();
+      if (!this.srv.solo) this.srv.sys('⏭ Question skipped — we\'ll come back to it at the end.');
+      this.later(() => this.next(), this.srv.solo ? 900 : 2200);
+      return;
+    }
+    this.phase = 'reveal';
+    this.finished++;
+    this.srv.pushPlayers();
+    this.srv.pushState();
+    this.later(() => this.next(), this.srv.solo ? 6000 : 5500);
+  }
+  onJoin() {}
+  onLeave() { if (this.phase === 'q' && this.everyoneDone()) this.finish(); }
+  stop() { this.clearTimers(); }
+}
+
+/* ======================================================================= */
+/* Sketch & Guess engine                                                   */
+/* ======================================================================= */
+class SketchEngine {
+  constructor(srv) { this.srv = srv; this.minPlayers = 2; this.timers = []; this.ops = []; this.used = new Set(); }
+  later(fn, ms) { this.timers.push(setTimeout(fn, ms)); }
+  clearTimers() { this.timers.forEach(clearTimeout); this.timers = []; }
+  start() {
+    this.rounds = this.srv.settings.rounds;
+    this.round = 1;
+    this.order = [...this.srv.players.keys()];
+    this.turn = -1;
+    this.nextTurn();
+  }
+  nextTurn() {
+    this.clearTimers();
+    this.turn++;
+    if (this.turn >= this.order.length) {
+      this.round++;
+      this.turn = 0;
+      this.order = [...this.srv.players.keys()];
+      if (this.round > this.rounds) return this.srv.endGame();
+    }
+    this.drawer = this.order[this.turn];
+    if (!this.srv.players.has(this.drawer)) return this.nextTurn();
+    this.phase = 'choose';
+    this.word = null;
+    this.ops = [];
+    this.guessed = new Map();
+    this.drawerPts = 0;
+    this.choices = this.pickWords(3);
+    this.dur = 15000;
+    this.deadline = Date.now() + this.dur;
+    this.srv.sendTo(this.drawer, { t: 'sk_choices', words: this.choices.map((c) => c.w), cats: this.choices.map((c) => c.cat) });
+    this.later(() => this.begin(this.choices[Math.floor(Math.random() * 3)]), this.dur);
+    this.srv.pushState();
+  }
+  pickWords(n) {
+    let fresh = FP.SKETCH_LIST.filter((x) => !this.used.has(x.w));
+    if (fresh.length < n) { this.used.clear(); fresh = FP.SKETCH_LIST; }
+    const out = FP.pickFresh('sketch', fresh, n, (x) => x.w, Math.random);
+    out.forEach((x) => this.used.add(x.w));
+    return out;
+  }
+  begin(choice) {
+    if (this.phase !== 'choose') return;
+    this.clearTimers();
+    this.phase = 'draw';
+    this.word = choice.w;
+    this.cat = choice.cat;
+    this.mask = this.word.split('').map((ch) => (/[a-z0-9]/i.test(ch) ? '_' : ch));
+    this.dur = this.srv.settings.time * 1000;
+    this.deadline = Date.now() + this.dur;
+    this.srv.sendTo(this.drawer, { t: 'sk_word', word: this.word });
+    const letters = this.mask.filter((c) => c === '_').length;
+    const hintAt = letters >= 7 ? [0.45, 0.65, 0.82] : letters >= 4 ? [0.55, 0.8] : [0.7];
+    hintAt.forEach((f) => this.later(() => this.hint(), this.dur * f));
+    this.later(() => this.endTurn(), this.dur);
+    this.srv.sys(this.srv.name(this.drawer) + ' is drawing now ✏️');
+    this.srv.pushState();
+  }
+  hint() {
+    const hidden = this.mask.map((c, i) => (c === '_' ? i : -1)).filter((i) => i >= 0);
+    if (hidden.length <= 1) return;
+    const i = hidden[Math.floor(Math.random() * hidden.length)];
+    this.mask[i] = this.word[i];
+    this.srv.pushState();
+  }
+  frac() { return Math.max(0, Math.min(1, (this.deadline - Date.now()) / this.dur)); }
+  onMessage(pid, m) {
+    if (pid !== this.drawer) return;
+    if (m.t === 'pick' && this.phase === 'choose') {
+      const i = FP.clampInt(m.i, 0, this.choices.length - 1);
+      if (i != null) this.begin(this.choices[i]);
+    } else if (m.t === 'draw' && this.phase === 'draw') {
+      const op = FP.validDrawOp(m.op);
+      if (!op) return;
+      if (op.k === 'undo') {
+        const last = this.ops[this.ops.length - 1];
+        if (!last) return;
+        if (last.k === 'line') { const g = last.g; while (this.ops.length && this.ops[this.ops.length - 1].k === 'line' && this.ops[this.ops.length - 1].g === g) this.ops.pop(); }
+        else this.ops.pop();
+      } else if (op.k === 'clear') this.ops = [];
+      else { if (this.ops.length >= 6000) return; this.ops.push(op); }
+      this.srv.broadcast({ t: 'draw', op }, pid);
+    }
+  }
+  onChat(pid, text) {
+    if (this.phase !== 'draw') return false;
+    if (pid === this.drawer || this.guessed.has(pid)) {
+      const to = new Set([this.drawer, ...this.guessed.keys()]);
+      for (const id of to) this.srv.sendTo(id, { t: 'chat', kind: 'secret', id: pid, name: this.srv.name(pid), text });
+      return true;
+    }
+    const res = FP.checkAnswer(text, [this.word]);
+    if (res === 'yes') {
+      const order = this.guessed.size;
+      const pts = Math.max(60, Math.round(120 + 380 * this.frac()) - order * 20);
+      this.guessed.set(pid, pts);
+      this.srv.addScore(pid, pts);
+      this.drawerPts += 70;
+      this.srv.addScore(this.drawer, 70);
+      this.srv.sendTo(pid, { t: 'sk_word', word: this.word });
+      this.srv.sys(this.srv.name(pid) + ' guessed the word! +' + pts, 'good');
+      this.srv.pushPlayers();
+      this.srv.pushState();
+      if (this.guessed.size >= this.srv.players.size - 1) this.endTurn();
+      return true;
+    }
+    if (res === 'close') {
+      this.srv.sendTo(pid, { t: 'chat', kind: 'close', text: '"' + text + '" is close!' });
+      return true;
+    }
+    return false;
+  }
+  endTurn() {
+    if (this.phase === 'reveal') return;
+    this.clearTimers();
+    if (this.phase === 'choose') this.word = this.choices[0].w;
+    this.phase = 'reveal';
+    this.srv.pushPlayers();
+    this.srv.pushState();
+    this.later(() => this.nextTurn(), 5000);
+  }
+  publicState() {
+    const st = { kind: 'sketch', phase: this.phase, round: this.round, rounds: this.rounds, drawer: this.drawer, dur: this.dur, remaining: Math.max(0, this.deadline - Date.now()), guessed: [...this.guessed.keys()] };
+    if (this.phase === 'draw') { st.mask = this.mask.join(''); st.cat = this.cat; }
+    if (this.phase === 'reveal') { st.word = this.word; st.gained = Object.fromEntries(this.guessed); st.drawerPts = this.drawerPts; }
+    return st;
+  }
+  onJoin(pid) {
+    // Late joiners receive the current drawing in chunks.
+    for (let i = 0; i < this.ops.length || i === 0; i += 150) {
+      this.srv.sendTo(pid, { t: 'draw_sync', reset: i === 0, ops: this.ops.slice(i, i + 150) });
+    }
+  }
+  onLeave(pid) {
+    this.guessed.delete(pid);
+    if (pid === this.drawer && this.phase !== 'reveal') { this.srv.sys('The artist left — skipping turn.'); this.endTurn(); return; }
+    if (this.phase === 'draw' && this.guessed.size >= this.srv.players.size - 1) this.endTurn();
+  }
+  stop() { this.clearTimers(); }
+}
+
+/* ======================================================================= */
+/* Guess Who duels — classic 1-v-1, turn by turn. Each player has a secret  */
+/* character; players ask questions and the OPPONENT answers yes/no.        */
+/* With more than two players, everyone is paired into simultaneous duels.  */
+/* ======================================================================= */
+class GuessWhoEngine {
+  constructor(srv) { this.srv = srv; this.minPlayers = 2; this.round = 0; this.matches = []; this.timers = []; }
+  later(fn, ms) { const t = setTimeout(fn, ms); this.timers.push(t); return t; }
+  clearTimers() { this.timers.forEach(clearTimeout); this.timers = []; this.matches.forEach((m) => clearTimeout(m.timer)); }
+  start() { this.rounds = this.srv.settings.rounds; this.nextRound(); }
+  other(m, pid) { return pid === m.a ? m.b : m.a; }
+  matchOf(pid) { return this.matches.find((m) => m.a === pid || m.b === pid); }
+  nextRound() {
+    this.clearTimers();
+    this.round++;
+    if (this.round > this.rounds) return this.srv.endGame();
+    const ids = [...this.srv.players.keys()];
+    if (ids.length < 2) return this.srv.endGame();
+    // Rotate who plays whom each round.
+    const k = (this.round - 1) % ids.length;
+    const order = ids.slice(k).concat(ids.slice(0, k));
+    if (order.length > 2 && this.round > 1) order.splice(1, 0, order.pop());
+    this.sitOut = order.length % 2 ? order.pop() : null;
+    this.turnMs = this.srv.settings.time * 1000;
+    this.phase = 'play';
+    this.matches = [];
+    for (let i = 0; i < order.length; i += 2) {
+      const rnd = FP.mathRng();
+      const board = FP.gwBoard(rnd, 24);
+      const a = order[i], b = order[i + 1];
+      const secA = FP.pick(board, rnd);
+      let secB = FP.pick(board, rnd);
+      while (secB === secA) secB = FP.pick(board, rnd);
+      const m = { id: 'm' + i, a, b, board, secret: { [a]: secA, [b]: secB }, turn: rnd() < 0.5 ? a : b, step: 'ask', q: null, log: [], asked: { [a]: 0, [b]: 0 }, winner: null, result: null, deadline: 0, timer: null };
+      this.matches.push(m);
+      this.srv.sendTo(a, { t: 'gw_secret', round: this.round, id: secA });
+      this.srv.sendTo(b, { t: 'gw_secret', round: this.round, id: secB });
+      this.arm(m);
+    }
+    this.srv.pushState();
+  }
+  // Each step (asking or answering) has a time limit so nobody can stall a duel.
+  arm(m) {
+    clearTimeout(m.timer);
+    m.deadline = Date.now() + this.turnMs;
+    m.timer = setTimeout(() => this.timeout(m), this.turnMs);
+  }
+  timeout(m) {
+    if (m.winner) return;
+    if (m.step === 'ask') {
+      m.log.push({ by: m.turn, timeout: true });
+      m.turn = this.other(m, m.turn);
+    } else {
+      // The answerer ran out of time: a list question is answered from their card, a custom one is dropped.
+      const answerer = this.other(m, m.turn);
+      const c = FP.charById(m.secret[answerer]);
+      if (m.q.k) m.log.push({ by: m.turn, k: m.q.k, text: m.q.text, a: c.traits.has(m.q.k), auto: true });
+      else m.log.push({ by: m.turn, text: m.q.text, a: null, auto: true });
+      m.asked[m.turn]++;
+      m.turn = answerer;
+      m.q = null;
+      m.step = 'ask';
+    }
+    this.arm(m);
+    this.srv.pushState();
+  }
+  onMessage(pid, m) {
+    if (m.t === 'next' && this.srv.isHost(pid) && this.phase === 'reveal') return this.nextRound();
+    const mt = this.matchOf(pid);
+    if (!mt || mt.winner || this.phase !== 'play') return;
+    if (m.t === 'gw_ask') {
+      if (mt.step !== 'ask' || mt.turn !== pid) return;
+      let q;
+      if (typeof m.k === 'string') { const def = FP.GW_QUESTIONS.find((x) => x.k === m.k); if (!def) return; q = { k: def.k, text: def.q }; }
+      else if (typeof m.text === 'string') {
+        let text = FP.cleanText(m.text, 120);
+        if (text.length < 3) return;
+        if (!/[?]$/.test(text)) text += '?';
+        q = { k: null, text };
+      } else return;
+      if (mt.log.length > 200) return;
+      mt.q = q; mt.step = 'answer';
+      this.arm(mt);
+      this.srv.pushState();
+    } else if (m.t === 'gw_reply') {
+      if (mt.step !== 'answer' || pid !== this.other(mt, mt.turn) || typeof m.a !== 'boolean') return;
+      mt.log.push({ by: mt.turn, k: mt.q.k, text: mt.q.text, a: m.a });
+      mt.asked[mt.turn]++;
+      mt.turn = pid; // the one who answered asks next
+      mt.q = null; mt.step = 'ask';
+      this.arm(mt);
+      this.srv.pushState();
+    } else if (m.t === 'gw_guess') {
+      if (mt.step !== 'ask' || mt.turn !== pid || !mt.board.includes(m.id)) return;
+      const opp = this.other(mt, pid);
+      const ok = m.id === mt.secret[opp];
+      this.finish(mt, ok ? pid : opp, { guesser: pid, id: m.id, ok });
+    }
+  }
+  finish(mt, winner, result) {
+    clearTimeout(mt.timer);
+    mt.winner = winner; mt.result = result; mt.step = 'done';
+    const pts = Math.max(300, 1000 - 60 * mt.asked[winner]);
+    this.srv.addScore(winner, pts);
+    mt.result.pts = pts;
+    const g = this.srv.name(result.guesser);
+    if (result.forfeit) this.srv.sys(this.srv.name(winner) + ' wins — their opponent left.', 'good');
+    else if (result.ok) this.srv.sys('🎯 ' + g + ' guessed right and beat ' + this.srv.name(this.other(mt, winner)) + '! +' + pts, 'good');
+    else this.srv.sys(g + ' guessed wrong — ' + this.srv.name(winner) + ' wins the duel! +' + pts, 'good');
+    this.srv.pushPlayers();
+    if (this.matches.every((m) => m.winner)) {
+      this.phase = 'reveal';
+      this.later(() => this.nextRound(), 9000);
+    }
+    this.srv.pushState();
+  }
+  onChat() { return false; }
+  publicState() {
+    const now = Date.now();
+    return {
+      kind: 'gw', phase: this.phase, round: this.round, rounds: this.rounds, sitOut: this.sitOut, dur: this.turnMs,
+      matches: this.matches.map((m) => ({
+        id: m.id, a: m.a, b: m.b, board: m.board, turn: m.turn, step: m.step, q: m.q, log: m.log, asked: m.asked,
+        winner: m.winner, result: m.result, remaining: m.winner ? 0 : Math.max(0, m.deadline - now),
+        secret: m.winner ? m.secret : null, // revealed only when the duel is over
+      })),
+    };
+  }
+  onJoin() {} // late joiners watch until the next round
+  onLeave(pid) {
+    const mt = this.matchOf(pid);
+    if (mt && !mt.winner) this.finish(mt, this.other(mt, pid), { guesser: pid, forfeit: true, ok: false });
+    if (this.sitOut === pid) this.sitOut = null;
+  }
+  stop() { this.clearTimers(); }
+}
+
+FP.Server = Server;
+})();

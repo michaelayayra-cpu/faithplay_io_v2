@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Security: strict Content-Security-Policy. No inline scripts, no eval, only our own JS. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://0.peerjs.com wss://0.peerjs.com; media-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; worker-src 'none'; manifest-src 'self'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="description" content="Hallelujoy — free Christian party games: draw & guess, Bible Guess Who, song quizzes (incl. African gospel), logic puzzles and more. Play with friends via a shareable link.">
+  <meta name="theme-color" content="#6c4cf1">
+  <title>Hallelujoy — Bible & Gospel Party Games</title>
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="#/" class="brand" aria-label="Hallelujoy home">
+        <span class="brand-mark" aria-hidden="true">✝</span>
+        <span class="brand-name">Hallelu<span class="brand-io">joy</span></span>
+      </a>
+      <div class="topbar-actions">
+        <span id="netStatus" class="status-pill" hidden></span>
+        <button id="soundBtn" class="icon-btn" type="button" aria-label="Toggle sound" title="Sound">🔊</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="app" class="container" aria-live="polite"></main>
+
+  <footer class="footer">
+    <p>Hallelujoy · Joyful games for fellowship, youth groups & family nights</p>
+    <p>Scripture taken from the New King James Version®. Copyright © 1982 by Thomas Nelson. Used by permission. All rights reserved.</p>
+  </footer>
+
+  <div id="toasts" class="toasts" aria-live="assertive"></div>
+  <div id="modalRoot"></div>
+
+  <noscript><p class="noscript">Hallelujoy needs JavaScript enabled to run.</p></noscript>
+
+  <script src="js/vendor/peerjs.min.js"></script>
+  <script src="js/util.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/data/characters.js"></script>
+  <script src="js/data/trivia.js"></script>
+  <script src="js/data/songs.js"></script>
+  <script src="js/data/words.js"></script>
+  <script src="js/data/puzzles.js"></script>
+  <script src="js/data/chain.js"></script>
+  <script src="js/net.js"></script>
+  <script src="js/games/generators.js"></script>
+  <script src="js/server.js"></script>
+  <script src="js/games/quiz-view.js"></script>
+  <script src="js/games/sketch.js"></script>
+  <script src="js/games/guesswho.js"></script>
+  <script src="js/games/logic.js"></script>
+  <script src="js/games/chain.js"></script>
+  <script src="js/games/connections.js"></script>
+  <script src="js/games/orderit.js"></script>
+  <script src="js/games/faithle.js"></script>
+  <script src="js/games/puzzle-room.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

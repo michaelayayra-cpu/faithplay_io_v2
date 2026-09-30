@@ -35,12 +35,16 @@ FP.makeConnections = function (seed, diff = 'medium') {
   return chosen.map((g, i) => ({ name: g.name, items: g.items, color: i }));
 };
 
-FP.pages.connections = function (root, arg) {
+FP.CONN_LIVES = { easy: LEVELS.easy.lives, medium: LEVELS.medium.lives, hard: LEVELS.hard.lives };
+
+// opts.room (optional): { report(data, done) } — used when the puzzle is played in a room.
+FP.pages.connections = function (root, arg, opts = {}) {
+  const R = opts.room;
   let [diff, seedStr] = String(arg || '').includes('-') ? String(arg).split('-') : [null, arg];
   if (!LEVELS[diff]) diff = FP.store.get('conn_diff', 'medium');
   const seed = parseInt(seedStr, 10);
   if (!Number.isInteger(seed) || seed < 0 || seed > 2 ** 31) { location.replace('#/p/connections/' + diff + '-' + FP.newSeed()); return; }
-  FP.store.set('conn_diff', diff);
+  if (!R) FP.store.set('conn_diff', diff);
   const L = LEVELS[diff];
   const next = () => '#/p/connections/' + diff + '-' + FP.newSeed();
   const groups = FP.makeConnections(seed, diff);
@@ -50,6 +54,8 @@ FP.pages.connections = function (root, arg) {
   let sel = new Set();
   let lives = L.lives;
   let over = false;
+  const attempts = []; // every submitted group of four, in order (the host replays these to score)
+  const report = () => { if (R) R.report({ attempts }, over); };
 
   function submit() {
     if (sel.size !== 4) return;
@@ -57,6 +63,7 @@ FP.pages.connections = function (root, arg) {
     const key = [...sel].sort().join('|');
     if (history.some((x) => x.key === key)) { FP.toast('Already guessed!'); return; }
     history.push({ key, row: picked.map((t) => t.g) });
+    attempts.push([...sel]);
     const counts = {};
     picked.forEach((t) => { counts[t.g] = (counts[t.g] || 0) + 1; });
     const best = Math.max(...Object.values(counts));
@@ -72,15 +79,17 @@ FP.pages.connections = function (root, arg) {
       FP.sound.play('bad');
       FP.toast(best === 3 ? 'One away…' : 'Not quite!', 'bad');
       if (lives <= 0) finish(false);
-      else { render(); root.querySelectorAll('.conn-tile.on').forEach((el) => el.classList.add('shake')); return; }
+      else { render(); report(); root.querySelectorAll('.conn-tile.on').forEach((el) => el.classList.add('shake')); return; }
     }
     render();
+    report();
   }
   function finish(won) {
     over = true;
     groups.forEach((g) => { if (!solved.includes(g)) solved.push(g); });
     tiles = [];
     render();
+    if (R) { report(); return; }
     const grid = history.map((r) => r.row.map((c) => EMO[c]).join('')).join('\n');
     const text = 'Hallelujoy Bible Connections #' + seed + '\n' + grid + '\n' + location.href;
     setTimeout(() => FP.modal(h('div', { class: 'stack center' },
@@ -93,9 +102,10 @@ FP.pages.connections = function (root, arg) {
     FP.clear(root);
     const card = h('div', { class: 'card stage' });
     card.append(FP.ui.stageHead('connections', 'Puzzle #' + seed + ' · ' + L.label + ' · create four groups of four', null, null,
-      h('div', { class: 'row', style: { gap: '6px' } },
+      R ? null : h('div', { class: 'row', style: { gap: '6px' } },
         h('div', { class: 'seg' }, Object.keys(LEVELS).map((d) => h('a', { class: d === diff ? 'on' : '', href: '#/p/connections/' + d + '-' + FP.newSeed() }, LEVELS[d].label))),
-        h('button', { class: 'btn btn-sm', type: 'button', onclick: () => FP.share('Try this Hallelujoy Bible Connections puzzle!', location.href) }, '🔗 Share'))));
+        h('button', { class: 'btn btn-sm', type: 'button', onclick: () => FP.share('Try this Hallelujoy Bible Connections puzzle!', location.href) }, '🔗 Share'),
+        h('a', { class: 'btn btn-sm', href: '#/host/connections/' + diff, title: 'Create a room where everyone solves the same puzzle' }, '👥 Race friends'))));
     if (diff === 'easy' && !over) card.append(h('div', { class: 'row mb', style: { gap: '6px' } }, h('span', { class: 'small muted', text: 'Categories:' }),
       FP.shuffle(groups.filter((g) => !solved.includes(g)).map((g) => g.name), FP.rng(seed + 2)).map((n) => h('span', { class: 'chip', text: n }))));
     const grid = h('div', { class: 'conn-grid' });
@@ -113,7 +123,8 @@ FP.pages.connections = function (root, arg) {
         h('button', { class: 'btn', type: 'button', onclick: () => { tiles = FP.shuffle(tiles); render(); } }, '🔀 Shuffle'),
         h('button', { class: 'btn', type: 'button', disabled: !sel.size, onclick: () => { sel = new Set(); render(); } }, 'Deselect'),
         h('button', { class: 'btn btn-primary', type: 'button', disabled: sel.size !== 4, onclick: submit }, 'Submit')));
-    } else card.append(h('div', { class: 'row mt', style: { justifyContent: 'center' } }, h('a', { class: 'btn btn-primary', href: next() }, 'New puzzle ▶')));
+    } else if (R) card.append(h('div', { class: 'reveal-box mt' + (solved.length && lives > 0 ? '' : ' miss') }, h('b', { text: lives > 0 ? '🎉 All four groups found! ' : '🙏 Out of mistakes. ' }), 'Waiting for the others…'));
+    else card.append(h('div', { class: 'row mt', style: { justifyContent: 'center' } }, h('a', { class: 'btn btn-primary', href: next() }, 'New puzzle ▶')));
     card.append(h('p', { class: 'tiny muted center mt', text: 'Tip: some words look like they fit two groups — only one arrangement works.' }));
     root.append(card);
   }

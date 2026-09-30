@@ -1,4 +1,14 @@
 /* Hallelujoy — clean, modern UI. Poppins throughout. */
+/* Puzzle rooms: live progress strip; the embedded puzzle drops its own card chrome. */
+.pz-strip { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.pz-row { display: flex; align-items: center; gap: 10px; font-size: .8rem; padding: 4px 8px; border-radius: 10px; background: var(--surface-2); }
+.pz-row.me { outline: 2px solid var(--primary-soft); }
+.pz-row.done .progress > i { background: var(--ok); }
+.pz-row .progress { margin: 0; }
+.pz-name { font-weight: 700; min-width: 90px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pz-meta { color: var(--muted); font-weight: 600; min-width: 60px; text-align: right; }
+.pz-holder > .card { border: 0; box-shadow: none; padding: 0; background: transparent; }
+.pz-holder.locked { pointer-events: none; opacity: .6; }
 :root {
   --bg: #f6f5fb;
   --surface: #ffffff;
@@ -481,3 +491,17 @@ label.lbl { display: block; font-size: .72rem; font-weight: 600; text-transform:
 .gw-no { background: var(--bad); border-color: var(--bad); color: #fff; min-width: 120px; }
 .gw-no:hover { background: #be123c; }
 @media (max-width: 520px) { .gw-tile .face { width: min(60px, 100%); } .gw-top .secret-card, .gw-action { min-width: 0; width: 100%; } }
+
+/* Wrong answers are shown in red */
+.player.wrong { background: var(--bad-soft); }
+.player.wrong .badge { color: var(--bad); font-weight: 800; }
+.msg.wrong { background: var(--bad-soft); color: var(--bad); }
+.msg.wrong b { color: var(--bad); }
+.results-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.res-chip { font-size: .78rem; font-weight: 600; padding: 4px 10px; border-radius: 999px; border: 1px solid transparent; }
+.res-chip.ok { background: var(--ok-soft); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, transparent); }
+.res-chip.bad { background: var(--bad-soft); color: var(--bad); border-color: color-mix(in srgb, var(--bad) 35%, transparent); }
+.res-chip.none { background: var(--surface-2); color: var(--muted); }
+.choice .who { display: flex; flex-wrap: wrap; gap: 4px; margin-left: auto; }
+.choice .who span { font-size: .68rem; font-weight: 700; padding: 2px 7px; border-radius: 999px; background: var(--bad); color: #fff; }
+.choice.right .who span { background: var(--ok); }

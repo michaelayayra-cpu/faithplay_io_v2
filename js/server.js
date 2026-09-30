@@ -134,7 +134,7 @@ class Server {
     if (FP.DIFFS.includes(s.diff) && this.settings.diff) this.settings.diff = s.diff;
     const kind = FP.MODES[this.mode].kind;
     const R = kind === 'quiz' ? [3, 30] : [1, 6];
-    const T = kind === 'sketch' ? [30, 180] : kind === 'gw' ? [20, 180] : [10, 60];
+    const T = kind === 'sketch' ? [30, 180] : kind === 'gw' ? [20, 180] : kind === 'puzzle' ? [60, 900] : [10, 60];
     if (Number.isInteger(s.rounds)) this.settings.rounds = Math.min(R[1], Math.max(R[0], s.rounds));
     if (Number.isInteger(s.time)) this.settings.time = Math.min(T[1], Math.max(T[0], s.time));
     if (this.mode === 'trivia' && FP.TRIVIA_CATS.includes(s.cat)) this.settings.cat = s.cat;
@@ -143,7 +143,7 @@ class Server {
   }
   startGame() {
     const def = FP.MODES[this.mode];
-    const Engine = def.kind === 'sketch' ? SketchEngine : def.kind === 'gw' ? GuessWhoEngine : QuizEngine;
+    const Engine = def.kind === 'sketch' ? SketchEngine : def.kind === 'gw' ? GuessWhoEngine : def.kind === 'puzzle' ? FP.PuzzleEngine : QuizEngine;
     const eng = new Engine(this);
     if (this.players.size < eng.minPlayers) {
       this.sendTo(this.hostId, { t: 'chat', kind: 'sys', text: def.title + ' needs at least ' + eng.minPlayers + ' players. Share the invite link!' });
@@ -193,7 +193,7 @@ class QuizEngine {
   }
   // Per-question memory survives a skip, so answers already given still count on the revisit.
   mem(q) {
-    if (!q.st) q.st = { picks: new Map(), correct: new Set(), gained: new Map(), idk: new Set(), visits: 0, shown: q.startClues || 1, mask: null, hints: 0 };
+    if (!q.st) q.st = { picks: new Map(), correct: new Set(), gained: new Map(), idk: new Set(), wrong: new Map(), visits: 0, shown: q.startClues || 1, mask: null, hints: 0 };
     return q.st;
   }
   next() {
@@ -254,7 +254,11 @@ class QuizEngine {
       answered: done, prior: [...this.srv.players.keys()].filter((pid) => this.answered(pid) && st.visits > 1), skipped: [...this.skips], q: pub,
     };
     if (this.phase === 'reveal') {
-      res.reveal = { answer: q.answer, correct: q.kind === 'mc' ? q.correct : null, explain: q.explain || null, picks: Object.fromEntries(st.picks), gained: Object.fromEntries(st.gained), idk: [...st.idk] };
+      // Who got it wrong (shown in red): wrong multiple-choice picks, or wrong typed guesses that never became right.
+      const wrong = {};
+      if (q.kind === 'mc') { for (const [pid, c] of st.picks) if (c !== q.correct) wrong[pid] = q.choices[c]; }
+      else { for (const [pid, g] of st.wrong) if (!st.correct.has(pid)) wrong[pid] = g; }
+      res.reveal = { answer: q.answer, correct: q.kind === 'mc' ? q.correct : null, explain: q.explain || null, picks: Object.fromEntries(st.picks), gained: Object.fromEntries(st.gained), idk: [...st.idk], wrong };
     }
     return res;
   }
@@ -308,7 +312,8 @@ class QuizEngine {
         this.srv.sendTo(pid, { t: 'chat', kind: 'close', text: '"' + text + '" is close!' });
       } else {
         this.srv.sendTo(pid, { t: 'you', ok: false });
-        if (!this.srv.solo) this.srv.broadcast({ t: 'chat', id: pid, name: this.srv.name(pid), text });
+        st.wrong.set(pid, text);
+        if (!this.srv.solo) this.srv.broadcast({ t: 'chat', kind: 'wrong', id: pid, name: this.srv.name(pid), text });
       }
     }
   }

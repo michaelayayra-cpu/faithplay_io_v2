@@ -15,16 +15,19 @@
 | 💬 **Who Said It?** | Solo / room | 48 KJV quotes. |
 | 🔀 **Scripture Scramble** | Solo / room | 149 words. Letter hints appear as the timer runs down. |
 | 🎲 **Revival Mix** | Solo / room | A random mix of all the quiz types. |
-| 🧩 **Clue Chain Grid** | Solo, shareable | Sporcle click-grid style. One box starts solved and every solved box gives a clue to another box ("Directly below me is my older sister"). You click that box and name the Bible person, place, object or book. Grids are 3×3 (easy), 4×4 (medium) or 5×5 (hard). Two clue styles: **Chain** (every box gives one clue) or **Branching** (some boxes give 2–3 clues for different boxes, so several are open at once and you solve them in any order). |
-| 🔎 **Deduction Grid** | Solo, shareable | Classic logic-grid puzzles in imagined Bible scenes, **guaranteed to have exactly one solution**. Easy, medium and hard. |
-| 🔗 **Bible Connections** | Solo, shareable | Group 16 words into 4 hidden categories. Groups are checked so each word fits only one of them. Easy shows the category names and allows 6 mistakes; hard uses deep-cut categories and allows 3. |
-| 📅 **Order It** | Solo, shareable | Put books, timelines and lives in order. Easy: 4 items, 4 tries. Medium: 5–6 items, 3 tries. Hard: 7 items, 2 tries. |
-| 🟩 **Faithle** | Daily | Wordle with 5-letter faith words. |
+| 🧩 **Clue Chain Grid** | Solo, shareable, room race | Sporcle click-grid style. One box starts solved and every solved box gives a clue to another box ("Directly below me is my older sister"). You click that box and name the Bible person, place, object or book. Grids are 3×3 (easy), 4×4 (medium) or 5×5 (hard). Two clue styles: **Chain** (every box gives one clue) or **Branching** (some boxes give 2–3 clues for different boxes, so several are open at once and you solve them in any order). |
+| 🔎 **Deduction Grid** | Solo, shareable, room race | Classic logic-grid puzzles in imagined Bible scenes, **guaranteed to have exactly one solution**. Easy, medium and hard. |
+| 🔗 **Bible Connections** | Solo, shareable, room race | Group 16 words into 4 hidden categories. Groups are checked so each word fits only one of them. Easy shows the category names and allows 6 mistakes; hard uses deep-cut categories and allows 3. |
+| 📅 **Order It** | Solo, shareable, room race | Put books, timelines and lives in order. Easy: 4 items, 4 tries. Medium: 5–6 items, 3 tries. Hard: 7 items, 2 tries. |
+| 🟩 **Faithle** | Daily, room race | Wordle with 5-letter faith words. |
 
 **Quiz options:**
 - **Difficulty (Easy / Medium / Hard).** Easy uses famous questions, gives 3 choices instead of 4, adds extra time and more hints. Hard uses deep cuts and less time.
 - **⏭ Skip for now.** Sends the question to the end, so you come back to it after the others. In a room, a question is saved for later if anyone skips it, and answers already given still count.
 - **🤷 I don't know.** Passes on the question.
+- **Wrong answers in red.** In a room, the reveal shows who picked each option (wrong picks in red, right ones in green), a ✔/✘ chip for every player, and red rows in the player list for anyone who got it wrong. Wrong typed guesses show up in red in the chat.
+
+**Puzzle rooms (race your friends):** every puzzle (Clue Chain, Deduction Grid, Connections, Order It, Faithle) can be played in a room. Everyone gets the *same* seeded puzzle at the same time, with a live progress bar for each player. When a player finishes, the host re-checks their answers itself (players can't just claim a score). Points are up to 700 for quality (fewer mistakes or hints) plus up to 300 for finishing first, second or third. Anyone still solving when time runs out is scored on what they had. The host picks the difficulty, the number of puzzles (1–5) and the time limit. Click a puzzle card and choose *Race friends*, or use the 👥 **Race friends** button on any solo puzzle.
 
 **Open in a new tab:** every game card is a real link, so right-click → *Open in new tab* works. `#/host/<game>` opens a new room with that game already selected.
 
@@ -36,6 +39,7 @@
 
 - Room invite: `https://your-site/#/r/ABC123`
 - New room with a game picked: `#/host/sketch`, `#/host/trivia`, …
+- New puzzle-race room: `#/host/connections`, `#/host/logic/hard`, `#/host/deduce/easy`, `#/host/orderit`, `#/host/faithle`
 - Solo quiz: `#/play/trivia`, `#/play/song`, `#/play/whoami`, `#/play/guesswho`, …
 - One specific puzzle, so a friend gets exactly the same one: `#/p/logic/medium-123456-m` (Clue Chain; `-m` branching, `-c` single chain), `#/p/deduce/hard-55`, `#/p/connections/easy-98765`, `#/p/orderit/hard-4242`
 - Today's Faithle: `#/p/faithle`
@@ -60,7 +64,7 @@ By default PeerJS provides Google STUN plus its own free TURN relays on UDP port
 
 ## Security measures
 
-- **Host is the authority.** Answers, the drawing word and the Guess Who secret stay on the host until the reveal. Only the host calculates scores, and clients send only intents (answers, chat, strokes).
+- **Host is the authority.** Answers, the drawing word and the Guess Who secret stay on the host until the reveal. In puzzle races, players send their raw answers and the host re-scores them. Only the host calculates scores, and clients send only intents (answers, chat, strokes).
 - **Validated input.** Every incoming message is checked against a whitelist and a schema and has a size cap. Clients also re-validate drawing ops from the host.
 - **Rate limits.** Each peer has a token-bucket limit, with a separate, stricter one for chat. Peers that keep flooding or sending bad messages are disconnected automatically.
 - **Host-only controls.** Only the host can start or end games, change settings, lock the room or remove players. The server enforces this; it isn't just hidden in the UI. The room is capped at 12 players.

@@ -163,10 +163,17 @@ class Room {
     const sorted = this.players.slice().sort((a, b) => b.score - a.score);
     sorted.forEach((p, i) => {
       let badge = '';
-      let done = false;
+      let done = false; let wrong = false;
       if (g) {
-        if (g.kind === 'quiz' && g.answered.includes(p.id)) { badge = '✔'; done = true; }
+        if (g.kind === 'quiz' && g.phase === 'reveal' && g.reveal) {
+          if (g.reveal.gained[p.id]) { badge = '✔'; done = true; }
+          else if (g.reveal.wrong && p.id in g.reveal.wrong) { badge = '✘'; wrong = true; }
+        } else if (g.kind === 'quiz' && g.answered.includes(p.id)) badge = '✔';
         if (g.kind === 'sketch') { if (g.drawer === p.id) badge = '✏️'; else if (g.guessed.includes(p.id)) { badge = '✔'; done = true; } }
+        if (g.kind === 'puzzle') {
+          const b = (g.board || []).find((x) => x.id === p.id);
+          if (b && b.done) { badge = b.rank ? '🏁' + b.rank : '🏁'; done = true; } else if (b) badge = b.progress + '%';
+        }
         if (g.kind === 'gw') {
           const mt = (g.matches || []).find((x) => x.a === p.id || x.b === p.id);
           if (!mt) badge = '👀';
@@ -175,7 +182,7 @@ class Room {
           else if (mt.step === 'answer') badge = '🤔';
         }
       }
-      this.playersEl.append(h('div', { class: 'player' + (p.id === this.me ? ' me' : '') + (done ? ' done' : '') },
+      this.playersEl.append(h('div', { class: 'player' + (p.id === this.me ? ' me' : '') + (done ? ' done' : '') + (wrong ? ' wrong' : '') },
         h('span', { class: 'rank', text: String(i + 1) }),
         h('span', { class: 'av', text: p.avatar }),
         h('span', { class: 'nm', text: p.name + (p.id === this.me ? ' (you)' : '') }),
@@ -199,7 +206,7 @@ class Room {
 
   addChat(m) {
     if (!this.feed) return;
-    const kind = ['sys', 'good', 'close', 'secret'].includes(m.kind) ? m.kind : '';
+    const kind = ['sys', 'good', 'close', 'secret', 'wrong'].includes(m.kind) ? m.kind : '';
     const text = FP.cleanText(String(m.text || ''), 160);
     if (!text) return;
     const el = h('div', { class: 'msg ' + kind });
@@ -216,7 +223,7 @@ class Room {
     if (!st || !FP.MODES[st.mode] || !this.stageBody) return;
     let key = st.phase;
     if (st.phase === 'playing' && st.game) key = st.game.kind;
-    const make = { lobby: FP.views.lobby, end: FP.views.end, quiz: FP.views.quiz, sketch: FP.views.sketch, gw: FP.views.gw }[key];
+    const make = { lobby: FP.views.lobby, end: FP.views.end, quiz: FP.views.quiz, sketch: FP.views.sketch, gw: FP.views.gw, puzzle: FP.views.puzzle }[key];
     if (!make) return;
     if (key !== this.viewKey) {
       if (this.view && this.view.destroy) this.view.destroy();
@@ -360,10 +367,9 @@ function gameCard(k) {
     h('div', { class: 'row', style: { gap: '12px', flexWrap: 'nowrap' } }, h('div', { class: 'game-icon', text: m.icon }), h('h3', { text: m.title })),
     h('p', { text: m.desc }),
     h('div', { class: 'game-tags' }, m.tags.map((t) => h('span', { class: 'chip', text: t })),
-      m.kind === 'quiz' ? h('span', { class: 'chip primary', text: 'Solo & rooms' }) : null));
+      m.kind === 'quiz' || m.kind === 'puzzle' ? h('span', { class: 'chip primary', text: 'Solo & rooms' }) : null));
   a.addEventListener('click', (e) => {
     if (e.button !== 0 || e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return; // let the browser open a new tab/window
-    if (m.kind === 'puzzle') return; // normal navigation
     e.preventDefault();
     openGame(k);
   });
@@ -372,7 +378,6 @@ function gameCard(k) {
 
 function openGame(k) {
   const m = FP.MODES[k];
-  if (m.kind === 'puzzle') { location.hash = '#/p/' + k; return; }
   let close;
   if (FP.room && !FP.room.dead && FP.room.role === 'host' && FP.room.isHost) {
     const code = FP.room.code;
@@ -393,11 +398,12 @@ function openGame(k) {
   close = FP.modal(h('div', { class: 'stack' },
     h('div', { class: 'row' }, h('div', { class: 'game-icon', style: { '--hue': m.hue }, text: m.icon }), h('h2', { text: m.title })),
     h('p', { class: 'muted', text: m.desc }),
-    link('#/play/' + k, 'btn-primary', k === 'guesswho' ? '🤖 Play vs computer' : '▶ Play solo'),
-    link('#/host/' + k, '', '👥 Play with friends (create room)'),
+    link(m.kind === 'puzzle' ? '#/p/' + k : '#/play/' + k, 'btn-primary', k === 'guesswho' ? '🤖 Play vs computer' : '▶ Play solo'),
+    link('#/host/' + k, '', m.kind === 'puzzle' ? '👥 Race friends on the same puzzle (create room)' : '👥 Play with friends (create room)'),
     h('p', { class: 'tiny muted center', text: 'Tip: right-click any game to open it in a new tab.' })));
 }
 let pendingMode = null;
+let pendingDiff = null;
 
 /* ---------------- home ---------------- */
 function renderHome() {
@@ -484,13 +490,18 @@ function route() {
     if (code.length !== 6) return showError('Invalid room link', 'Room codes have 6 letters/numbers.');
     if (FP.room && FP.room.role === 'host' && FP.room.code === code) {
       FP.room.mount(app);
-      if (pendingMode) { FP.room.send({ t: 'settings', s: { mode: pendingMode } }); pendingMode = null; }
+      if (pendingMode) {
+        FP.room.send({ t: 'settings', s: { mode: pendingMode } });
+        if (pendingDiff) FP.room.send({ t: 'settings', s: { diff: pendingDiff } });
+        pendingMode = null; pendingDiff = null;
+      }
       return;
     }
     return joinRoom(code);
   }
-  if (a === 'host' && b && FP.MODES[b] && FP.MODES[b].kind !== 'puzzle') {
+  if (a === 'host' && b && FP.MODES[b]) {
     pendingMode = b;
+    pendingDiff = FP.DIFFS.includes(c) ? c : null;
     if (FP.room && FP.room.role === 'host' && !FP.room.dead) { location.replace('#/r/' + FP.room.code); return; }
     return hostRoom();
   }

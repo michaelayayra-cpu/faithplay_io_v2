@@ -113,8 +113,10 @@ FP.makeChain = function (seed, diff, style = 'chain') {
   return { n, grid, root: rootCell, order, clueFrom, parentOf, style };
 };
 
-function chainPage(root, arg) {
+// opts.room (optional): { report(data, done) } — used when the puzzle is played in a room.
+function chainPage(root, arg, opts = {}) {
   index();
+  const R = opts.room;
   const parts = String(arg || '').split('-');
   let diff = parts[0];
   if (!DIFF[diff]) diff = FP.store.get('chain_diff', 'medium');
@@ -123,8 +125,7 @@ function chainPage(root, arg) {
   const base = '#/p/logic/';
   const link = (d, st, sd) => base + d + '-' + sd + '-' + (st === 'multi' ? 'm' : 'c');
   if (!Number.isInteger(seed) || seed < 0 || seed > 2 ** 31 || !parts[2]) { location.replace(link(diff, style, Number.isInteger(seed) ? seed : FP.newSeed())); return; }
-  FP.store.set('chain_diff', diff);
-  FP.store.set('chain_style', style);
+  if (!R) { FP.store.set('chain_diff', diff); FP.store.set('chain_style', style); }
   const cfg = DIFF[diff];
   const pz = FP.makeChain(seed, diff, style);
   const { n } = pz; const N = n * n;
@@ -135,6 +136,8 @@ function chainPage(root, arg) {
   let sel = null; let gaveUp = false; let hints = 0; let lastSolved = pz.root;
   const t0 = Date.now();
   let input;
+  const typed = {}; // box -> what the player typed when they solved it (sent to the room host to verify)
+  const report = (done) => { if (R) R.report({ answers: typed, hints }, done); };
   const label = (c) => rowName(Math.floor(c / n)) + ((c % n) + 1);
   // Open boxes = unsolved boxes whose clue-giver is solved.
   const openBoxes = () => pz.order.filter((c) => !solved.has(c) && solved.has(pz.parentOf[c]));
@@ -142,8 +145,10 @@ function chainPage(root, arg) {
   const autoSelect = () => { const o = openBoxes(); if (easy && o.length === 1) sel = o[0]; else if (!o.includes(sel)) sel = null; };
   autoSelect();
 
-  function solve(c) {
+  function solve(c, text) {
     solved.add(c); lastSolved = c;
+    typed[c] = String(text || '').slice(0, 60);
+    report(solved.size === N);
     FP.sound.play('good');
     sel = null;
     if (solved.size === N) { render(); finish(); return; }
@@ -160,7 +165,7 @@ function chainPage(root, arg) {
     };
     if (sel != null && open.includes(sel)) {
       const r = matches(sel, fuzzy);
-      if (r === 'yes') { solve(sel); return true; }
+      if (r === 'yes') { solve(sel, text); return true; }
       if (!fuzzy) return false;
       if (open.some((c) => c !== sel && matches(c, true) === 'yes')) { FP.toast('Right answer — but it belongs in a different box! Re-read the directions.', 'bad'); FP.sound.play('bad'); return false; }
       FP.toast(r === 'close' ? 'So close — check the spelling.' : 'Not quite. Try again!', r === 'close' ? '' : 'bad');
@@ -176,6 +181,7 @@ function chainPage(root, arg) {
   function finish() {
     const secs = Math.round((Date.now() - t0) / 1000);
     FP.sound.play('win');
+    if (R) return;
     FP.store.set('chain_solved', FP.store.get('chain_solved', 0) + 1);
     const time = Math.floor(secs / 60) + 'm ' + (secs % 60) + 's';
     const text = 'I solved Hallelujoy Clue Chain #' + seed + ' (' + cfg.label + (style === 'multi' ? ', branching' : '') + ', ' + N + ' boxes) in ' + time + ' with ' + FP.plural(hints, 'hint') + '!\n' + location.href;
@@ -206,8 +212,9 @@ function chainPage(root, arg) {
     const val = input ? input.value : '';
     FP.clear(root);
     const card = h('div', { class: 'card stage' });
-    card.append(FP.ui.stageHead('logic', 'Puzzle #' + seed + ' · ' + n + '×' + n, null, null,
+    card.append(FP.ui.stageHead('logic', 'Puzzle #' + seed + ' · ' + n + '×' + n, null, null, R ? null :
       h('div', { class: 'row', style: { gap: '6px' } },
+        h('a', { class: 'btn btn-sm', href: '#/host/logic/' + diff, title: 'Create a room where everyone solves the same puzzle' }, '👥 Race friends'),
         h('div', { class: 'seg', title: 'Clue style' },
           h('a', { class: style === 'chain' ? 'on' : '', href: link(diff, 'chain', FP.newSeed()), title: 'Every box gives one clue' }, 'Chain'),
           h('a', { class: style === 'multi' ? 'on' : '', href: link(diff, 'multi', FP.newSeed()), title: 'Some boxes give 2–3 clues' }, 'Branching')),
@@ -252,7 +259,7 @@ function chainPage(root, arg) {
     card.append(h('div', { class: 'row mb', style: { flexWrap: 'nowrap' } }, input,
       h('span', { class: 'chip primary', text: solved.size + '/' + N }),
       h('button', { class: 'btn btn-sm', type: 'button', disabled: gaveUp || !open.length, onclick: hint }, '💡 Hint'),
-      h('button', { class: 'btn btn-sm btn-ghost', type: 'button', disabled: gaveUp || !open.length, onclick: () => { if (confirm('Give up and reveal every box?')) { gaveUp = true; render(); } } }, 'Give up')));
+      h('button', { class: 'btn btn-sm btn-ghost', type: 'button', disabled: gaveUp || !open.length, onclick: () => { if (confirm(R ? 'Stop here? Your solved boxes still count.' : 'Give up and reveal every box?')) { gaveUp = true; report(true); render(); } } }, R ? 'Finish' : 'Give up')));
 
     const grid = h('div', { class: 'chain-grid', style: { '--n': String(n) } });
     for (let c = 0; c < N; c++) {
@@ -278,8 +285,8 @@ function chainPage(root, arg) {
     }
     card.append(h('div', { class: 'chain-scroll' }, grid));
     card.append(h('div', { class: 'row mt' },
-      h('a', { class: 'btn btn-primary', href: link(diff, style, FP.newSeed()) }, '🔄 New puzzle'),
-      h('button', { class: 'btn', type: 'button', onclick: () => FP.share('Can you solve this Hallelujoy Clue Chain?', location.href) }, '🔗 Share this puzzle')));
+      R ? h('span', { class: 'small muted', text: solved.size === N || gaveUp ? 'Done! Waiting for the others…' : 'Solve as many boxes as you can before time runs out.' }) : h('a', { class: 'btn btn-primary', href: link(diff, style, FP.newSeed()) }, '🔄 New puzzle'),
+      R ? null : h('button', { class: 'btn', type: 'button', onclick: () => FP.share('Can you solve this Hallelujoy Clue Chain?', location.href) }, '🔗 Share this puzzle')));
     root.append(card);
     if (sel != null) setTimeout(() => input.focus(), 0);
   }
@@ -287,4 +294,5 @@ function chainPage(root, arg) {
 }
 FP.pages.logic = chainPage;
 FP.pages.chain = chainPage;
+FP.chainAnswers = (id) => { index(); return ENT[id] ? answersOf(id) : []; };
 })();

@@ -15,14 +15,20 @@ function score(guess, answer) {
   return res;
 }
 
-FP.pages.faithle = function (root, arg) {
-  const words = FP.shuffle(FP.FAITHLE_WORDS, FP.rng(20250101));
-  const daily = !arg;
+const wordList = () => FP.shuffle(FP.FAITHLE_WORDS, FP.rng(20250101));
+FP.faithleAnswer = (num) => { const w = wordList(); return w[num % w.length]; };
+FP.faithleScore = score;
+
+// opts.room (optional): { report(data, done) } — used when the puzzle is played in a room.
+FP.pages.faithle = function (root, arg, opts = {}) {
+  const R = opts.room;
+  const words = wordList();
+  const daily = !arg && !R;
   const num = daily ? dayNumber() : parseInt(arg, 10);
   if (!Number.isInteger(num) || num < 0) { location.replace('#/p/faithle'); return; }
   const answer = words[num % words.length];
   const saveKey = 'faithle_' + (daily ? 'd' + num : 'p' + num);
-  let guesses = FP.store.get(saveKey, []).filter((g) => typeof g === 'string' && /^[A-Z]{5}$/.test(g)).slice(0, 6);
+  let guesses = R ? [] : FP.store.get(saveKey, []).filter((g) => typeof g === 'string' && /^[A-Z]{5}$/.test(g)).slice(0, 6);
   let cur = '';
   let over = guesses.includes(answer) || guesses.length >= 6;
   let shakeRow = false;
@@ -37,10 +43,11 @@ FP.pages.faithle = function (root, arg) {
     if (k === 'ENTER') {
       if (cur.length !== 5) { shakeRow = true; FP.toast('Not enough letters'); render(); return; }
       guesses.push(cur); cur = '';
-      FP.store.set(saveKey, guesses);
-      if (guesses[guesses.length - 1] === answer) { over = true; FP.sound.play('win'); if (daily) FP.store.set('faithle_streak', FP.store.get('faithle_streak', 0) + 1); setTimeout(result, 600); }
-      else if (guesses.length >= 6) { over = true; FP.sound.play('bad'); if (daily) FP.store.set('faithle_streak', 0); setTimeout(result, 600); }
+      if (!R) FP.store.set(saveKey, guesses);
+      if (guesses[guesses.length - 1] === answer) { over = true; FP.sound.play('win'); if (daily) FP.store.set('faithle_streak', FP.store.get('faithle_streak', 0) + 1); if (!R) setTimeout(result, 600); }
+      else if (guesses.length >= 6) { over = true; FP.sound.play('bad'); if (daily) FP.store.set('faithle_streak', 0); if (!R) setTimeout(result, 600); }
       else FP.sound.play('pop');
+      if (R) R.report({ guesses }, over);
     } else if (k === 'BACK') cur = cur.slice(0, -1);
     else if (/^[A-Z]$/.test(k) && cur.length < 5) { cur += k; FP.sound.play('tick'); }
     render();
@@ -58,7 +65,13 @@ FP.pages.faithle = function (root, arg) {
   function render() {
     FP.clear(root);
     const card = h('div', { class: 'card stage' });
-    card.append(FP.ui.stageHead('faithle', daily ? 'Daily word #' + num : 'Practice word', null, null, daily ? null : h('a', { class: 'btn btn-sm', href: '#/p/faithle' }, 'Today\'s word')));
+    const link = FP.baseUrl() + (daily ? '#/p/faithle/' + num : location.hash);
+    card.append(FP.ui.stageHead('faithle', R ? 'Everyone has the same word' : daily ? 'Daily word #' + num : 'Practice word #' + num, null, null, R ? null :
+      h('div', { class: 'row', style: { gap: '6px' } },
+        daily ? null : h('a', { class: 'btn btn-sm', href: '#/p/faithle' }, 'Today\'s word'),
+        h('button', { class: 'btn btn-sm', type: 'button', onclick: () => FP.share('Can you guess this Faithle word?', link) }, '🔗 Share'),
+        h('a', { class: 'btn btn-sm', href: '#/host/faithle', title: 'Create a room where everyone guesses the same word' }, '👥 Race friends'))));
+    if (R && over) card.append(h('div', { class: 'reveal-box mb' + (guesses.includes(answer) ? '' : ' miss') }, h('b', { text: guesses.includes(answer) ? '🙌 Got it in ' + guesses.length + '! ' : '📖 Out of guesses. ' }), 'Waiting for the others…'));
     const board = h('div', { class: 'fl-board' });
     for (let r = 0; r < 6; r++) {
       const g = guesses[r];
@@ -84,7 +97,7 @@ FP.pages.faithle = function (root, arg) {
       kb.append(kr);
     });
     card.append(kb);
-    if (over) card.append(h('div', { class: 'row mt', style: { justifyContent: 'center' } }, h('button', { class: 'btn', type: 'button', onclick: result }, 'Show result')));
+    if (over && !R) card.append(h('div', { class: 'row mt', style: { justifyContent: 'center' } }, h('button', { class: 'btn', type: 'button', onclick: result }, 'Show result')));
     card.append(h('p', { class: 'tiny muted center mt', text: 'Guess the 5-letter Bible or faith word. 🟩 right spot · 🟨 in the word · ⬛ not in the word.' }));
     root.append(card);
   }

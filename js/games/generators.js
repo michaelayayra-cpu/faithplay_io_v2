@@ -13,13 +13,13 @@ FP.MODES = {
   whosaid: { title: 'Who Said It?', icon: '💬', hue: '#0ea5e9', kind: 'quiz', group: 'quiz', desc: 'Famous words from the King James Bible — can you name the speaker?', tags: ['KJV quotes'], defaults: { diff: 'medium', rounds: 10, time: 20 } },
   scramble: { title: 'Scripture Scramble', icon: '🔀', hue: '#14b8a6', kind: 'quiz', group: 'quiz', desc: 'Unscramble books, people, places and faith words before the letters give it away.', tags: ['Typed answers'], defaults: { diff: 'medium', rounds: 10, time: 30 } },
   mix: { title: 'Revival Mix', icon: '🎲', hue: '#22c55e', kind: 'quiz', group: 'quiz', desc: 'A bit of everything — trivia, songs, quotes, clues and scrambles shuffled together.', tags: ['Variety'], defaults: { diff: 'medium', rounds: 12, time: 20 } },
-  logic: { title: 'Clue Chain Grid', icon: '🧩', hue: '#8b5cf6', kind: 'puzzle', group: 'puzzle', desc: 'Sporcle-style click grid: solve one box to reveal a clue to the next — Bible people, places, objects & books.', tags: ['3 levels', 'Shareable'] },
-  deduce: { title: 'Deduction Grid', icon: '🔎', hue: '#7c3aed', kind: 'puzzle', group: 'puzzle', desc: 'Classic logic-grid: use the clues to work out who did what. Endless puzzles.', tags: ['3 levels', 'Shareable'] },
-  connections: { title: 'Bible Connections', icon: '🔗', hue: '#eab308', kind: 'puzzle', group: 'puzzle', desc: 'Sort 16 words into 4 hidden groups. Watch out for red herrings!', tags: ['Solo', 'Shareable'] },
-  orderit: { title: 'Order It', icon: '📅', hue: '#06b6d4', kind: 'puzzle', group: 'puzzle', desc: 'Drag books, events and lives into the right order.', tags: ['Solo', 'Shareable'] },
-  faithle: { title: 'Faithle', icon: '🟩', hue: '#16a34a', kind: 'puzzle', group: 'puzzle', desc: 'Guess the five-letter faith word in six tries. New word every day.', tags: ['Daily', 'Solo'] },
+  logic: { title: 'Clue Chain Grid', icon: '🧩', hue: '#8b5cf6', kind: 'puzzle', group: 'puzzle', desc: 'Sporcle-style click grid: solve one box to reveal a clue to the next — Bible people, places, objects & books.', tags: ['3 levels', 'Shareable'], defaults: { diff: 'medium', rounds: 1, time: 300 } },
+  deduce: { title: 'Deduction Grid', icon: '🔎', hue: '#7c3aed', kind: 'puzzle', group: 'puzzle', desc: 'Classic logic-grid: use the clues to work out who did what. Endless puzzles.', tags: ['3 levels', 'Shareable'], defaults: { diff: 'medium', rounds: 1, time: 300 } },
+  connections: { title: 'Bible Connections', icon: '🔗', hue: '#eab308', kind: 'puzzle', group: 'puzzle', desc: 'Sort 16 words into 4 hidden groups. Watch out for red herrings!', tags: ['Solo', 'Shareable'], defaults: { diff: 'medium', rounds: 1, time: 300 } },
+  orderit: { title: 'Order It', icon: '📅', hue: '#06b6d4', kind: 'puzzle', group: 'puzzle', desc: 'Drag books, events and lives into the right order.', tags: ['Solo', 'Shareable'], defaults: { diff: 'medium', rounds: 1, time: 300 } },
+  faithle: { title: 'Faithle', icon: '🟩', hue: '#16a34a', kind: 'puzzle', group: 'puzzle', desc: 'Guess the five-letter faith word in six tries. New word every day.', tags: ['Daily', 'Solo'], defaults: { diff: 'medium', rounds: 1, time: 300 } },
 };
-FP.ROOM_MODES = Object.keys(FP.MODES).filter((k) => FP.MODES[k].kind !== 'puzzle');
+FP.ROOM_MODES = Object.keys(FP.MODES); // every game, puzzles included, can be played in a room
 FP.TRIVIA_CATS = ['all', 'Old Testament', 'New Testament', 'Bible Basics', 'Africa & the Bible', 'Church History'];
 
 FP.DIFFS = ['easy', 'medium', 'hard'];

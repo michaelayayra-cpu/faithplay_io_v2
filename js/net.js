@@ -39,6 +39,7 @@ FP.CLIENT_SCHEMA = {
   draw: (m) => FP.isObj(m.op),
   gw_ask: (m) => (m.k === undefined || str(m.k, 20)) && (m.text === undefined || str(m.text, 160)) && (m.k !== undefined || m.text !== undefined),
   gw_reply: (m) => typeof m.a === 'boolean',
+  pz_state: (m) => FP.isObj(m.data) && typeof m.done === 'boolean' && Number.isInteger(m.r),
   gw_guess: (m) => str(m.id, 30),
 };
 function validClientMsg(d) {

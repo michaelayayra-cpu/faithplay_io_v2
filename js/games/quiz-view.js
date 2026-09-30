@@ -81,8 +81,9 @@ FP.views.quiz = function (room) {
           const rv = g.reveal;
           if (i === rv.correct) b.classList.add('right');
           else if (myPick === i) b.classList.add('wrong');
-          const count = Object.values(rv.picks).filter((p) => p === i).length;
-          if (!room.solo) b.append(h('span', { class: 'cnt', text: count ? '×' + count : '' }));
+          // Name who picked each option: red on wrong options, green on the right one.
+          const pickers = Object.entries(rv.picks).filter(([, c]) => c === i).map(([pid]) => pid);
+          if (!room.solo && pickers.length) b.append(h('span', { class: 'who' }, pickers.map((pid) => h('span', { text: pid === room.me ? 'You' : room.nameOf(pid) }))));
         }
         grid.append(b);
       });
@@ -123,6 +124,16 @@ FP.views.quiz = function (room) {
         rv.explain ? h('div', { class: 'small', style: { marginTop: '4px' }, text: rv.explain }) : null);
       if (got && mine !== lastGained) { FP.sound.play('good'); lastGained = mine; } else if (!got && !(rv.idk || []).includes(room.me)) FP.sound.play('bad');
       wrap.append(box);
+      if (!room.solo) {
+        const row = h('div', { class: 'results-row' });
+        room.players.forEach((p) => {
+          const who = p.id === room.me ? 'You' : p.name;
+          if (rv.gained[p.id]) row.append(h('span', { class: 'res-chip ok', text: '✔ ' + who + ' +' + rv.gained[p.id] }));
+          else if (rv.wrong && p.id in rv.wrong) row.append(h('span', { class: 'res-chip bad', text: '✘ ' + who + (q.kind === 'mc' ? ' — ' + rv.wrong[p.id] : ' — "' + rv.wrong[p.id] + '"') }));
+          else row.append(h('span', { class: 'res-chip none', text: (rv.idk || []).includes(p.id) ? '🤷 ' + who : '⏰ ' + who }));
+        });
+        wrap.append(row);
+      }
       if (room.isHost) wrap.append(h('div', { class: 'row', style: { justifyContent: 'flex-end' } }, h('button', { class: 'btn btn-primary', type: 'button', onclick: () => room.send({ t: 'next' }) }, g.num >= g.n ? 'See results 🏆' : 'Next question ▶')));
     }
   }
@@ -212,11 +223,16 @@ FP.views.lobby = function (room) {
       } else if (mode.kind === 'gw') {
         sets.append(setting('Rounds', [1, 2, 3, 5], s.rounds, String, 'rounds'));
         sets.append(setting('Time per turn', [30, 60, 90, 120], s.time, (v) => v + 's', 'time'));
+      } else if (mode.kind === 'puzzle') {
+        if (st.mode !== 'faithle') sets.append(setting('Difficulty', FP.DIFFS, s.diff, (v) => FP.DIFF_LABEL[v], 'diff'));
+        sets.append(setting('Puzzles', [1, 2, 3, 5], s.rounds, String, 'rounds'));
+        sets.append(setting('Time limit', [120, 300, 480, 600], s.time, (v) => v / 60 + ' min', 'time'));
       }
       body.append(h('div', { class: 'card mt', style: { boxShadow: 'none', background: 'var(--surface-2)' } },
         h('div', { class: 'row' }, h('div', { class: 'game-icon', style: { '--hue': mode.hue }, text: mode.icon }), h('div', { class: 'grow' }, h('h3', { text: mode.title }), h('p', { class: 'small muted', text: mode.desc }))),
         mode.kind === 'gw' ? h('p', { class: 'tiny muted mt', text: 'Classic 1-v-1 duels: each player gets a secret character. Take turns asking yes/no questions (from the list or your own) — your opponent answers — until someone guesses. A wrong guess loses! With more than 2 players, everyone is paired up; with an odd number, one player sits out each round.' }) : null,
         mode.kind === 'sketch' ? h('p', { class: 'tiny muted mt', text: 'Needs at least 2 players. Guess by typing in the chat.' }) : null,
+        mode.kind === 'puzzle' ? h('p', { class: 'tiny muted mt', text: 'Puzzle race: everyone gets the SAME puzzle and sees each other\'s progress live. Points for how well you solve it, plus a bonus for finishing first, second and third. When time runs out you still score for what you\'ve done.' }) : null,
         mode.kind === 'quiz' ? h('p', { class: 'tiny muted mt', text: 'Stuck? ⏭ Skip for now sends a question to the end so you can come back to it. 🤷 I don\'t know passes it. Easy = famous questions, 3 choices & extra time; Hard = deep cuts & less time.' + (room.solo ? '' : ' In rooms, a question is saved for later if anyone skips it.') }) : null,
         sets));
       if (room.isHost) {

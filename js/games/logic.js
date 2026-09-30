@@ -121,12 +121,14 @@ FP.makeLogic = function (seed, diff) {
   };
 };
 
-FP.pages.deduce = function (root, arg) {
+// opts.room (optional): { report(data, done) } — used when the puzzle is played in a room.
+FP.pages.deduce = function (root, arg, opts = {}) {
+  const R = opts.room;
   let [diff, seedStr] = String(arg || '').split('-');
   if (!['easy', 'medium', 'hard'].includes(diff)) diff = FP.store.get('logic_diff', 'medium');
   let seed = parseInt(seedStr, 10);
   if (!Number.isInteger(seed) || seed < 0 || seed > 2 ** 31) { location.replace('#/p/deduce/' + diff + '-' + FP.newSeed()); return; }
-  FP.store.set('logic_diff', diff);
+  if (!R) FP.store.set('logic_diff', diff);
 
   const t0 = Date.now();
   const pz = FP.makeLogic(seed, diff);
@@ -134,6 +136,9 @@ FP.pages.deduce = function (root, arg) {
   const marks = pz.cats.map(() => pz.people.map(() => Array(n).fill('')));
   const used = new Set();
   let solved = false;
+  // What the player currently has marked ✓ (row choices), sent to the room host for scoring.
+  const picks = () => pz.cats.map((_, c) => pz.people.map((_, p) => marks[c][p].filter((m) => m === 'o').length === 1 ? marks[c][p].indexOf('o') : -1));
+  const report = (done) => { if (R) R.report({ picks: picks() }, done); };
 
   function set(c, p, v, val) {
     marks[c][p][v] = val;
@@ -153,6 +158,7 @@ FP.pages.deduce = function (root, arg) {
       solved = true;
       const secs = Math.round((Date.now() - t0) / 1000);
       FP.sound.play('win');
+      if (R) { report(true); render(); return; }
       FP.modal(h('div', { class: 'stack center' }, h('div', { class: 'big-emoji', text: '🧠' }), h('h2', { text: 'Solved!' }), h('p', { class: 'muted', text: 'You cracked it in ' + Math.floor(secs / 60) + 'm ' + (secs % 60) + 's.' }),
         h('div', { class: 'row', style: { justifyContent: 'center' } }, h('button', { class: 'btn', type: 'button', onclick: () => FP.share('Can you solve this Hallelujoy logic puzzle?', location.href) }, '🔗 Challenge a friend'), h('a', { class: 'btn btn-primary', href: '#/p/deduce/' + diff + '-' + FP.newSeed() }, 'Next puzzle ▶'))));
       const best = FP.store.get('logic_solved', 0); FP.store.set('logic_solved', best + 1);
@@ -163,8 +169,11 @@ FP.pages.deduce = function (root, arg) {
   function render() {
     FP.clear(root);
     const card = h('div', { class: 'card stage' });
-    card.append(FP.ui.stageHead('deduce', pz.theme.icon + ' ' + pz.theme.title + ' · puzzle #' + seed, null, null,
-      h('div', { class: 'seg' }, ['easy', 'medium', 'hard'].map((d) => h('button', { type: 'button', class: d === diff ? 'on' : '', onclick: () => { location.hash = '#/p/deduce/' + d + '-' + FP.newSeed(); } }, cap(d))))));
+    card.append(FP.ui.stageHead('deduce', pz.theme.icon + ' ' + pz.theme.title + ' · puzzle #' + seed, null, null, R ? null :
+      h('div', { class: 'row', style: { gap: '6px' } },
+        h('div', { class: 'seg' }, ['easy', 'medium', 'hard'].map((d) => h('button', { type: 'button', class: d === diff ? 'on' : '', onclick: () => { location.hash = '#/p/deduce/' + d + '-' + FP.newSeed(); } }, cap(d)))),
+        h('a', { class: 'btn btn-sm', href: '#/host/deduce/' + diff, title: 'Create a room where everyone solves the same puzzle' }, '👥 Race friends'))));
+    if (R && solved) card.append(h('div', { class: 'reveal-box mb' }, h('b', { text: '🧠 Solved! ' }), 'Waiting for the others…'));
     card.append(h('p', { class: 'muted small mb', text: pz.theme.intro + ' Use the clues to match each ' + pz.theme.who.label.toLowerCase() + ' with one of each item. Tap a square once for ✗ (no), twice for ✓ (yes).' }));
     const cl = h('ol', { class: 'clue-list' });
     pz.clues.forEach((t, i) => cl.append(h('li', { class: used.has(i) ? 'used' : '', title: 'Tap to cross off', onclick: () => { if (used.has(i)) used.delete(i); else used.add(i); render(); } }, t)));
@@ -178,7 +187,7 @@ FP.pages.deduce = function (root, arg) {
           return h('td', null, h('button', { type: 'button', class: m, 'aria-label': person + ' / ' + it + ': ' + (m === 'o' ? 'yes' : m === 'x' ? 'no' : 'unknown'), onclick: () => {
             if (solved) return;
             set(c, p, v, m === '' ? 'x' : m === 'x' ? 'o' : '');
-            FP.sound.play('tick'); render();
+            FP.sound.play('tick'); render(); report(false);
           } }, m === 'o' ? '✓' : m === 'x' ? '✗' : ''));
         })));
       });
@@ -190,9 +199,9 @@ FP.pages.deduce = function (root, arg) {
         h('div', { class: 'row mt' },
           h('button', { class: 'btn btn-primary', type: 'button', onclick: check }, '✔ Check'),
           h('button', { class: 'btn', type: 'button', onclick: () => { for (const g of marks) for (const r of g) r.fill(''); render(); } }, 'Reset'),
-          h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => { if (!confirm('Reveal the solution?')) return; pz.cats.forEach((_, c) => pz.people.forEach((_, p) => { marks[c][p].fill('x'); marks[c][p][pz.solution[c][p]] = 'o'; })); solved = true; render(); } }, 'Reveal'),
+          R ? null : h('button', { class: 'btn btn-ghost', type: 'button', onclick: () => { if (!confirm('Reveal the solution?')) return; pz.cats.forEach((_, c) => pz.people.forEach((_, p) => { marks[c][p].fill('x'); marks[c][p][pz.solution[c][p]] = 'o'; })); solved = true; render(); } }, 'Reveal'),
           h('span', { class: 'grow' }),
-          h('button', { class: 'btn btn-sm', type: 'button', onclick: () => FP.share('Can you solve this Hallelujoy logic puzzle?', location.href) }, '🔗 Share this puzzle')))));
+          R ? null : h('button', { class: 'btn btn-sm', type: 'button', onclick: () => FP.share('Can you solve this Hallelujoy logic puzzle?', location.href) }, '🔗 Share this puzzle')))));
     root.append(card);
   }
   render();
